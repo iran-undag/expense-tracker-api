@@ -34,14 +34,13 @@ public class OllamaReceiptProcessor implements ReceiptProcessor {
         log.info("Connecting to Ollama AI processor for receipt: {}", image.getOriginalFilename());
         try {
             UserMessage userMessage = new UserMessage(
-                    "Extract expense details from this receipt image. Return ONLY a JSON object with fields: merchantName (string), amount (number), date (string YYYY-MM-DD), category (string).",
-                    List.of(new Media(MimeTypeUtils.IMAGE_JPEG, image.getResource()))
-            );
+                    "Extract expense details from this receipt image. Return ONLY a JSON object with fields: merchantName (string), amount (number), date (string YYYY-MM-DD), category (string). Do not wrap the JSON in markdown. Do not use ```json.",
+                    List.of(new Media(MimeTypeUtils.IMAGE_JPEG, image.getResource())));
 
             ChatResponse response = chatModel.call(new Prompt(userMessage));
             String content = response.getResult().getOutput().getContent();
             log.info("Ollama AI processing completed. Received content: {}", content);
-            
+
             // Basic JSON cleaning in case LLM adds markdown blocks
             if (content.contains("```json")) {
                 content = content.substring(content.indexOf("```json") + 7, content.lastIndexOf("```"));
@@ -57,7 +56,7 @@ public class OllamaReceiptProcessor implements ReceiptProcessor {
                     .date(LocalDate.parse(root.path("date").asText(LocalDate.now().toString())))
                     .category(root.path("category").asText("General"))
                     .build();
-            
+
             log.debug("Extracted data from Ollama: {}", extracted);
             return extracted;
 
