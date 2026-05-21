@@ -1,6 +1,6 @@
 # Expense Tracker API
 
-A backend API for managing and tracking personal or organizational expenses and local/cloud AI capability to read receipt images.
+A backend API for managing and tracking personal or organizational expenses with local/cloud AI capability to read receipt images.
 
 ## Features
 
