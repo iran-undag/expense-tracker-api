@@ -1,5 +1,6 @@
 package com.example.expensetracker.controller;
 
+import com.example.expensetracker.dto.ExpenseCreateRequestDto;
 import com.example.expensetracker.model.Expense;
 import com.example.expensetracker.service.ExpenseService;
 import com.example.expensetracker.service.ReceiptProcessor;
@@ -50,15 +51,20 @@ class ExpenseControllerTest {
 
     @Test
     void createExpense_shouldReturnSavedExpense() throws Exception {
+        ExpenseCreateRequestDto request = ExpenseCreateRequestDto.builder()
+                .description("Coffee")
+                .amount(new BigDecimal("5.00"))
+                .build();
+
         Expense expense = new Expense();
         expense.setDescription("Coffee");
         expense.setAmount(new BigDecimal("5.00"));
-        
+
         when(expenseService.saveExpense(any(Expense.class))).thenReturn(expense);
 
         mockMvc.perform(post("/api/expenses")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(expense)))
+                .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.description").value("Coffee"));
     }

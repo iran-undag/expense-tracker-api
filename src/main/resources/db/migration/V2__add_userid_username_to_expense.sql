@@ -1,0 +1,2 @@
+ALTER TABLE expense ADD COLUMN userid VARCHAR(255);
+ALTER TABLE expense ADD COLUMN username VARCHAR(255);

@@ -86,3 +86,21 @@ This project is licensed under the MIT License. See the [LICENSE](LICENSE) file 
 ---
 
 **Created by [iran-undag](https://github.com/iran-undag)**
+
+## Docker / Production
+
+
+Run the API with a PostgreSQL database using the Docker Compose plugin (creates a `db` service and the `app` service):
+
+```bash
+docker compose --env-file .env up --build -d
+```
+
+This composes the app with the `prod` Spring profile. Copy `.env.sample` to `.env` and edit environment values before starting.
+
+Local development uses the `dev` profile (H2). To run locally with H2:
+
+```bash
+mvn spring-boot:run -Dspring-boot.run.profiles=dev
+```
+

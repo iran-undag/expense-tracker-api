@@ -1,10 +1,7 @@
-package com.example.expensetracker.model;
+package com.example.expensetracker.dto;
 
+import com.example.expensetracker.model.Expense;
 import io.swagger.v3.oas.annotations.media.Schema;
-import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -13,18 +10,16 @@ import lombok.NoArgsConstructor;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 
-@Entity
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-@Schema(description = "Represents an individual expense record")
-public class Expense {
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+@Schema(description = "Response payload for an expense record")
+public class ExpenseResponseDto {
+
     @Schema(description = "Unique identifier", example = "1", accessMode = Schema.AccessMode.READ_ONLY)
     private Long id;
-    
+
     @Schema(description = "Description of the expense", example = "Lunch at Subway")
     private String description;
 
@@ -42,4 +37,19 @@ public class Expense {
 
     @Schema(description = "Username associated with the expense", example = "jdoe")
     private String username;
+
+    public static ExpenseResponseDto fromEntity(Expense expense) {
+        if (expense == null) {
+            return null;
+        }
+        return ExpenseResponseDto.builder()
+                .id(expense.getId())
+                .description(expense.getDescription())
+                .amount(expense.getAmount())
+                .date(expense.getDate())
+                .category(expense.getCategory())
+                .userid(expense.getUserid())
+                .username(expense.getUsername())
+                .build();
+    }
 }
