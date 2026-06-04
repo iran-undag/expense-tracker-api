@@ -30,22 +30,22 @@ public class ExpenseServiceImpl implements ExpenseService {
     }
 
     @Override
-    public Optional<Expense> getExpenseById(Long id) {
-        return expenseRepository.findById(id);
+    public Optional<Expense> getExpenseById(Long id, String userId) {
+        return expenseRepository.findByIdAndUserid(id, userId);
     }
 
     @Override
-    public List<Expense> getExpensesByDate(LocalDate date) {
-        return expenseRepository.findByDate(date);
+    public List<Expense> getExpensesByDate(LocalDate date, String userId) {
+        return expenseRepository.findByUseridAndDate(userId, date);
     }
 
     @Override
-    public BigDecimal getTotalExpensesForMonth(int year, int month) {
-        log.info("Calculating total expenses for month: {}/{}", month, year);
+    public BigDecimal getTotalExpensesForMonth(int year, int month, String userId) {
+        log.info("Calculating total expenses for month: {}/{} for user: {}", month, year, userId);
         LocalDate startDate = LocalDate.of(year, month, 1);
         LocalDate endDate = startDate.withDayOfMonth(startDate.lengthOfMonth());
         
-        BigDecimal total = expenseRepository.findByDateBetween(startDate, endDate)
+        BigDecimal total = expenseRepository.findByUseridAndDateBetween(userId, startDate, endDate)
                 .stream()
                 .map(Expense::getAmount)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
@@ -55,7 +55,27 @@ public class ExpenseServiceImpl implements ExpenseService {
     }
 
     @Override
-    public List<Expense> getAllExpenses() {
-        return expenseRepository.findAll();
+    public List<Expense> getAllExpenses(String userId) {
+        return expenseRepository.findByUserid(userId);
+    }
+
+    @Override
+    public Expense updateExpense(Long id, String userId, Expense updatedExpense) {
+        log.info("Updating expense {} for user {}", id, userId);
+        return expenseRepository.findByIdAndUserid(id, userId).map(existing -> {
+            existing.setDescription(updatedExpense.getDescription());
+            existing.setAmount(updatedExpense.getAmount());
+            existing.setDate(updatedExpense.getDate());
+            existing.setCategory(updatedExpense.getCategory());
+            return expenseRepository.save(existing);
+        }).orElseThrow(() -> new RuntimeException("Expense not found or you do not have permission to update it"));
+    }
+
+    @Override
+    public void deleteExpense(Long id, String userId) {
+        log.info("Deleting expense {} for user {}", id, userId);
+        Expense existing = expenseRepository.findByIdAndUserid(id, userId)
+                .orElseThrow(() -> new RuntimeException("Expense not found or you do not have permission to delete it"));
+        expenseRepository.delete(existing);
     }
 }

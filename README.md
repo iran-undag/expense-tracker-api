@@ -4,11 +4,11 @@ A backend API for managing and tracking personal or organizational expenses with
 
 ## Features
 
-- User authentication and secure session management (TODO)
+- User authentication and secure session management (JWT)
 - CRUD (Create, Read, Update, Delete) operations for expenses and categories
 - Categorization of expenses (e.g. Food, Travel, Utilities)
 - Date-based expense queries and summaries
-- Support for multiple users (TODO)
+- Support for multiple users (User-scoped data access)
 - Extensible for budgeting and reporting integrations
 - RESTful endpoints for easy frontend integration
 
@@ -18,7 +18,7 @@ A backend API for managing and tracking personal or organizational expenses with
 - **Framework**: Spring Boot
 - **Database**: H2 (for now)
 - **Build Tool**: Maven
-- **Authentication**: TODO
+- **Authentication**: Spring Security + JWT
 
 ## Getting Started
 
@@ -29,6 +29,7 @@ A backend API for managing and tracking personal or organizational expenses with
 - Database server (H2 for now)
 - Installed Ollama server
 - Azure Document Intelligence resource
+- Local OpenVINO Vision API server
 
 ### Setup
 
@@ -70,14 +71,22 @@ The API will be available by default at `http://localhost:8080`.
 
 Swagger/OpenAPI documentation is available at `http://localhost:8080/swagger-ui/index.html`.
 
+### Testing with Swagger
+
+> **TIP:** To test the secured endpoints in Swagger:
+> 1. Launch the application and go to the Swagger UI (`/swagger-ui/index.html`).
+> 2. Call `POST /api/auth/login` with a JSON payload like `{"username": "your_test_user"}`.
+> 3. Copy the generated JWT token from the response.
+> 4. Click the "Authorize" button at the top of the Swagger page and enter your token (no 'Bearer ' prefix needed in the input field).
+> 5. You can now securely test the protected `/api/expenses` endpoints!
+
 #### Example Endpoints
 
-- `POST /api/auth/register` — Register a new user (TODO)
-- `POST /api/auth/login` — Authenticate and obtain token (TODO)
-- `GET /api/expenses` — List all expenses for authenticated user
+- `POST /api/auth/login` — Authenticate and obtain a mock JWT token
+- `GET /api/expenses` — List all expenses for the authenticated user
 - `POST /api/expenses` — Add a new expense
-- `PUT /api/expenses/{id}` — Update an expense
-- `DELETE /api/expenses/{id}` — Delete an expense (TODO)
+- `PUT /api/expenses/{id}` — Update an existing expense
+- `DELETE /api/expenses/{id}` — Delete an expense
 
 > For a detailed API reference, see the Swagger docs or consult the source code.
 

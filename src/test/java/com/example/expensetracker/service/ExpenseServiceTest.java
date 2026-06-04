@@ -15,6 +15,7 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -31,6 +32,7 @@ class ExpenseServiceTest {
         Expense expense = new Expense();
         expense.setDescription("Test");
         expense.setAmount(new BigDecimal("10.00"));
+        expense.setUserid("testuser");
 
         when(expenseRepository.save(any(Expense.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -44,9 +46,9 @@ class ExpenseServiceTest {
     void getExpenseById_shouldReturnExpense() {
         Expense expense = new Expense();
         expense.setId(1L);
-        when(expenseRepository.findById(1L)).thenReturn(Optional.of(expense));
+        when(expenseRepository.findByIdAndUserid(1L, "testuser")).thenReturn(Optional.of(expense));
 
-        Optional<Expense> result = expenseService.getExpenseById(1L);
+        Optional<Expense> result = expenseService.getExpenseById(1L, "testuser");
 
         assertThat(result).isPresent();
         assertThat(result.get().getId()).isEqualTo(1L);
@@ -55,9 +57,9 @@ class ExpenseServiceTest {
     @Test
     void getAllExpenses_shouldReturnList() {
         List<Expense> expenses = List.of(new Expense(), new Expense());
-        when(expenseRepository.findAll()).thenReturn(expenses);
+        when(expenseRepository.findByUserid("testuser")).thenReturn(expenses);
 
-        List<Expense> result = expenseService.getAllExpenses();
+        List<Expense> result = expenseService.getAllExpenses("testuser");
 
         assertThat(result).hasSize(2);
     }
@@ -70,9 +72,9 @@ class ExpenseServiceTest {
         Expense e1 = new Expense(); e1.setAmount(new BigDecimal("10.00"));
         Expense e2 = new Expense(); e2.setAmount(new BigDecimal("20.00"));
         
-        when(expenseRepository.findByDateBetween(start, end)).thenReturn(List.of(e1, e2));
+        when(expenseRepository.findByUseridAndDateBetween("testuser", start, end)).thenReturn(List.of(e1, e2));
 
-        BigDecimal total = expenseService.getTotalExpensesForMonth(2024, 5);
+        BigDecimal total = expenseService.getTotalExpensesForMonth(2024, 5, "testuser");
 
         assertThat(total).isEqualTo(new BigDecimal("30.00"));
     }
