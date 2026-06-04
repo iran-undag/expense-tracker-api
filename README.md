@@ -42,8 +42,8 @@ A backend API for managing and tracking personal or organizational expenses with
    - Edit `src/main/resources/application.properties`.
    - Set environment variables for the parameters in applications.properties.<br>
      Example: <br>
-     (Windows) `set AI_PROVIDER=azure` or `set AI_PROVIDER=ollama`<br>
-     (Linux/macOS) `export AI_PROVIDER=azure` or `export AI_PROVIDER=ollama`
+     (Windows) `set AI_PROVIDER=azure`, `set AI_PROVIDER=ollama`, or `set AI_PROVIDER=openvino`<br>
+     (Linux/macOS) `export AI_PROVIDER=azure`, `export AI_PROVIDER=ollama`, or `export AI_PROVIDER=openvino`
      
 3. **Build the project:**
    ```sh
@@ -59,6 +59,8 @@ A backend API for managing and tracking personal or organizational expenses with
 
    Local: Install ollama and update applications.properties to reference the AI.<br>
           Set environment variable: `set AI_PROVIDER=ollama` before running the API.
+
+   OpenVINO: Start the OpenVINO Vision API and set environment variables: `AI_PROVIDER=openvino`, `OPENVINO_BASE_URL=http://localhost:8001`. The API posts receipts to `/api/vision/chat` by default.
 
    Cloud: Create an Azure Document Intelligence resource. Set environment variables: AI_PROVIDER=azure, AZURE_DOCUMENT_AI_ENDPOINT=your_endpoint, AZURE_DOCUMENT_AI_KEY=your_key
    
@@ -103,4 +105,3 @@ Local development uses the `dev` profile (H2). To run locally with H2:
 ```bash
 mvn spring-boot:run -Dspring-boot.run.profiles=dev
 ```
-
