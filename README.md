@@ -65,11 +65,11 @@ A backend API for managing and tracking personal or organizational expenses with
 
    Cloud: Create an Azure Document Intelligence resource. Set environment variables: AI_PROVIDER=azure, AZURE_DOCUMENT_AI_ENDPOINT=your_endpoint, AZURE_DOCUMENT_AI_KEY=your_key
    
-The API will be available by default at `http://localhost:8080`.
+The API will be available by default at `http://localhost:8081`.
 
 ## API Documentation
 
-Swagger/OpenAPI documentation is available at `http://localhost:8080/swagger-ui/index.html`.
+Swagger/OpenAPI documentation is available at `http://localhost:8081/swagger-ui/index.html`.
 
 ### Testing with Swagger
 
