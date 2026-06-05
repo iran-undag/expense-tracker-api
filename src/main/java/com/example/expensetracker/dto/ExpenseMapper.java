@@ -15,8 +15,6 @@ public class ExpenseMapper {
                 .amount(request.getAmount())
                 .date(request.getDate())
                 .category(request.getCategory())
-                .userid(request.getUserid())
-                .username(request.getUsername())
                 .build();
     }
 

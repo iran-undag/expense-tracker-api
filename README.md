@@ -75,7 +75,7 @@ Swagger/OpenAPI documentation is available at `http://localhost:8081/swagger-ui/
 
 > **TIP:** To test the secured endpoints in Swagger:
 > 1. Launch the application and go to the Swagger UI (`/swagger-ui/index.html`).
-> 2. Call `POST /api/auth/login` with a JSON payload like `{"username": "your_test_user"}`.
+> 2. Call `POST /api/auth/login` with a JSON payload like `{"userId": "your_test_user"}`.
 > 3. Copy the generated JWT token from the response.
 > 4. Click the "Authorize" button at the top of the Swagger page and enter your token (no 'Bearer ' prefix needed in the input field).
 > 5. You can now securely test the protected `/api/expenses` endpoints!

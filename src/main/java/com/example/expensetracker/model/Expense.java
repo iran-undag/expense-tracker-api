@@ -39,7 +39,4 @@ public class Expense {
 
     @Schema(description = "User identifier associated with the expense", example = "user-123")
     private String userid;
-
-    @Schema(description = "Username associated with the expense", example = "jdoe")
-    private String username;
 }

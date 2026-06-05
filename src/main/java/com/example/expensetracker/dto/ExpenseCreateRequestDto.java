@@ -29,10 +29,4 @@ public class ExpenseCreateRequestDto {
 
     @Schema(description = "Category of the expense", example = "Food")
     private String category;
-
-    @Schema(description = "User identifier associated with the expense", example = "user-123")
-    private String userid;
-
-    @Schema(description = "Username associated with the expense", example = "jdoe")
-    private String username;
 }

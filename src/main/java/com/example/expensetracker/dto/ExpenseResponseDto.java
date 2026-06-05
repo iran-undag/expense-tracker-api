@@ -35,9 +35,6 @@ public class ExpenseResponseDto {
     @Schema(description = "User identifier associated with the expense", example = "user-123")
     private String userid;
 
-    @Schema(description = "Username associated with the expense", example = "jdoe")
-    private String username;
-
     public static ExpenseResponseDto fromEntity(Expense expense) {
         if (expense == null) {
             return null;
@@ -49,7 +46,6 @@ public class ExpenseResponseDto {
                 .date(expense.getDate())
                 .category(expense.getCategory())
                 .userid(expense.getUserid())
-                .username(expense.getUsername())
                 .build();
     }
 }
