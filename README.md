@@ -24,12 +24,13 @@ A backend API for managing and tracking personal or organizational expenses with
 
 ### Prerequisites
 
-- Java 8 or newer
+- **Java 17 or newer** (Spring Boot 3.3.0+)
 - Maven
-- Database server (H2 for now)
-- Installed Ollama server
-- Azure Document Intelligence resource
-- Local OpenVINO Vision API server
+- Docker & Docker Compose (for production deployment)
+- **AI provider** (optional, choose one for receipt processing):
+  - Ollama server (local, default)
+  - Azure Document Intelligence resource
+  - OpenVINO Vision API server
 
 ### Setup
 
@@ -40,32 +41,53 @@ A backend API for managing and tracking personal or organizational expenses with
    ```
 
 2. **Configure Environment:**
-   - Edit `src/main/resources/application.properties`.
-   - Set environment variables for the parameters in applications.properties.<br>
-     Example: <br>
-     (Windows) `set AI_PROVIDER=azure`, `set AI_PROVIDER=ollama`, or `set AI_PROVIDER=openvino`<br>
-     (Linux/macOS) `export AI_PROVIDER=azure`, `export AI_PROVIDER=ollama`, or `export AI_PROVIDER=openvino`
-     
-3. **Build the project:**
+   ```sh
+   cp .env.sample .env
+   ```
+   Edit `.env` and set your AI provider and other configuration variables.
+
+3. **Select an AI Provider:**
+
+   **Ollama (Local, Recommended):**
+   ```env
+   AI_PROVIDER=ollama
+   OLLAMA_BASE_URL=http://localhost:11434
+   ```
+   Ensure Ollama is running on your machine.
+
+   **OpenVINO (Local):**
+   ```env
+   AI_PROVIDER=openvino
+   OPENVINO_BASE_URL=http://localhost:8001
+   OPENVINO_CHAT_PATH=/api/vision/chat
+   ```
+   Ensure OpenVINO Vision API is running on your machine.
+
+   **Azure (Cloud):**
+   ```env
+   AI_PROVIDER=azure
+   AZURE_DOCUMENT_AI_ENDPOINT=https://your-resource.cognitiveservices.azure.com/
+   AZURE_DOCUMENT_AI_KEY=your-api-key
+   ```
+
+4. **Build the project:**
    ```sh
    ./mvnw clean install
    ```
-  
-4. **Start the server:**
+
+5. **Start the development server:**
+
+   **Linux/macOS:**
    ```sh
-   ./mvnw spring-boot:run
+   ./run-dev.sh
    ```
-   
-4. **AI Provider:**
 
-   Local: Install ollama and update applications.properties to reference the AI.<br>
-          Set environment variable: `set AI_PROVIDER=ollama` before running the API.
+   **Windows:**
+   ```cmd
+   run-dev.bat
+   ```
 
-   OpenVINO: Start the OpenVINO Vision API and set environment variables: `AI_PROVIDER=openvino`, `OPENVINO_BASE_URL=http://localhost:8001`. The API posts receipts to `/api/vision/chat` by default.
-
-   Cloud: Create an Azure Document Intelligence resource. Set environment variables: AI_PROVIDER=azure, AZURE_DOCUMENT_AI_ENDPOINT=your_endpoint, AZURE_DOCUMENT_AI_KEY=your_key
-   
-The API will be available by default at `http://localhost:8081`.
+The API will be available at `http://localhost:8081`.
 
 ## API Documentation
 
@@ -100,7 +122,6 @@ This project is licensed under the MIT License. See the [LICENSE](LICENSE) file 
 
 ## Docker / Production
 
-
 Run the API with a PostgreSQL database using the Docker Compose plugin (creates a `db` service and the `app` service):
 
 ```bash
@@ -109,8 +130,25 @@ docker compose --env-file .env up --build -d
 
 This composes the app with the `prod` Spring profile. Copy `.env.sample` to `.env` and edit environment values before starting.
 
+**Key environment variables in `.env`:**
+- `AI_PROVIDER` — Select `ollama`, `openvino`, or `azure` (default: `ollama`)
+- `OLLAMA_BASE_URL` — Ollama server URL (default: `http://host.docker.internal:11434`)
+- `OPENVINO_BASE_URL` — OpenVINO server URL (default: `http://host.docker.internal:8001`)
+- `AZURE_DOCUMENT_AI_ENDPOINT` & `AZURE_DOCUMENT_AI_KEY` — For Azure provider
+- `AUTH_ISSUER_URI` & `ALLOWED_ORIGIN_PATTERNS` — For CORS and auth configuration
+
+The API is published on `http://localhost:8081`, matching the app's internal container port.
+
+To test multiple local API replicas behind a reverse proxy:
+
+```bash
+docker compose --env-file .env -f docker-compose.yml -f docker-compose.scale.yml up --build --scale app=3 -d
+```
+
+In scaled mode, only the Nginx proxy publishes `localhost:8081`; app replicas stay private on the Docker network.
+
 Local development uses the `dev` profile (H2). To run locally with H2:
 
 ```bash
-mvn spring-boot:run -Dspring-boot.run.profiles=dev
+./mvnw spring-boot:run -Dspring-boot.run.profiles=dev -Dspring-boot.run.jvmArguments="-Dspring.profiles.active=dev"
 ```

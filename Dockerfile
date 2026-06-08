@@ -36,11 +36,11 @@ RUN mkdir -p /app/logs && chmod +x /app/wait-for-db.sh && chown -R appuser:appus
 USER appuser
 
 # Expose port
-EXPOSE 8080
+EXPOSE 8081
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-  CMD curl -fsS http://localhost:8080/actuator/health || exit 1
+  CMD curl -fsS http://localhost:8081/actuator/health || exit 1
 
 # Run the application with DB wait helper
 ENTRYPOINT ["/app/wait-for-db.sh", "java", "-jar", "app.jar"]
