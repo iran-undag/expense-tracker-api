@@ -1,6 +1,6 @@
 # Expense Tracker API
 
-A demo backend API for managing and tracking personal or organizational expenses with local/cloud AI capability to read receipt images.
+Demo Spring Boot service for the Expense Tracker demo application. It supports local/cloud AI capability to read receipt images.
 
 ## Features
 
@@ -11,14 +11,15 @@ A demo backend API for managing and tracking personal or organizational expenses
 - Support for multiple users (User-scoped data access)
 - Extensible for budgeting and reporting integrations
 - RESTful endpoints for easy frontend integration
+- Upload receipt images for AI OCR extraction.
 - Request correlation with `X-Correlation-Id` for cross-service log lookup
 
 ## Technology Stack
 
-- **Language**: Java (100%)
+- **Language**: Java 17
 - **Framework**: Spring Boot
-- **Database**: H2 (for now)
-- **Build Tool**: Maven
+- **Database**: H2 for development/tests; PostgreSQL for production
+- **Build Tool**: Maven or the included maven wrapper
 - **Authentication**: Spring Security + JWT
 
 ## Getting Started
@@ -27,13 +28,13 @@ A demo backend API for managing and tracking personal or organizational expenses
 
 - **Java 17 or newer** (Spring Boot 3.3.0+)
 - Maven
-- Docker & Docker Compose (for production deployment)
+- Docker & Docker Compose (for production-like local runs)
 - **AI provider** (optional, choose one for receipt processing):
   - Ollama server (local, default)
   - Azure Document Intelligence resource
   - OpenVINO Vision API server
 
-### Setup
+### Setup (profile=dev)
 
 1. **Clone the repository:**
    ```sh
@@ -77,6 +78,12 @@ A demo backend API for managing and tracking personal or organizational expenses
    ```
 
 5. **Start the development server:**
+
+   Local development uses the `dev` profile (H2). To run locally with H2 (already inside run-dev.sh):
+
+   ```bash
+   ./mvnw spring-boot:run -Dspring-boot.run.profiles=dev -Dspring-boot.run.jvmArguments="-Dspring.profiles.active=dev"
+   ```
 
    **Linux/macOS:**
    ```sh
@@ -144,7 +151,7 @@ This project is licensed under the MIT License. See the [LICENSE](LICENSE) file 
 
 **Created by [iran-undag](https://github.com/iran-undag)**
 
-## Docker / Production
+## Docker (profile=prod)
 
 Run the API with a PostgreSQL database using the Docker Compose plugin (creates a `db` service and the `app` service):
 
@@ -176,9 +183,3 @@ docker compose --env-file .env -f docker-compose.yml -f docker-compose.scale.yml
 ```
 
 In scaled mode, only the Nginx proxy publishes `localhost:8081`; app replicas stay private on the Docker network.
-
-Local development uses the `dev` profile (H2). To run locally with H2:
-
-```bash
-./mvnw spring-boot:run -Dspring-boot.run.profiles=dev -Dspring-boot.run.jvmArguments="-Dspring.profiles.active=dev"
-```
