@@ -1,10 +1,13 @@
 package com.example.expensetracker.service;
 
+import com.example.expensetracker.config.CorrelationId;
 import com.example.expensetracker.exception.ReceiptProcessingException;
 import com.example.expensetracker.model.Expense;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.slf4j.MDC;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
@@ -20,6 +23,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.hamcrest.Matchers.containsString;
 import static org.springframework.test.web.client.ExpectedCount.once;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.content;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withServerError;
@@ -35,6 +39,13 @@ class OpenVinoReceiptProcessorTest {
     @BeforeEach
     void setUp() {
         restTemplate = new RestTemplate();
+        restTemplate.getInterceptors().add((request, body, execution) -> {
+            String correlationId = MDC.get(CorrelationId.MDC_KEY);
+            if (correlationId != null && !correlationId.isBlank()) {
+                request.getHeaders().set(CorrelationId.HEADER_NAME, correlationId);
+            }
+            return execution.execute(request, body);
+        });
         server = MockRestServiceServer.bindTo(restTemplate).build();
         processor = new OpenVinoReceiptProcessor(
                 restTemplate,
@@ -46,6 +57,11 @@ class OpenVinoReceiptProcessorTest {
                 "resto-receipt2.jpg",
                 MediaType.IMAGE_JPEG_VALUE,
                 new byte[]{1, 2, 3});
+    }
+
+    @AfterEach
+    void tearDown() {
+        MDC.remove(CorrelationId.MDC_KEY);
     }
 
     @Test
@@ -108,6 +124,21 @@ class OpenVinoReceiptProcessorTest {
         assertThatThrownBy(() -> processor.processReceipt(receiptImage))
                 .isInstanceOf(ReceiptProcessingException.class)
                 .hasMessageContaining("OpenVINO");
+        server.verify();
+    }
+
+    @Test
+    void processReceipt_withCorrelationIdInMdc_shouldPropagateHeader() {
+        MDC.put(CorrelationId.MDC_KEY, "receipt-correlation-id");
+
+        server.expect(once(), requestTo("http://localhost:8001/api/vision/chat"))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(header(CorrelationId.HEADER_NAME, "receipt-correlation-id"))
+                .andRespond(withSuccess("{\"response\":\"{\\\"merchantName\\\":\\\"Store\\\",\\\"amount\\\":1,\\\"date\\\":\\\"2024-01-01\\\",\\\"category\\\":\\\"Other\\\"}\"}", MediaType.APPLICATION_JSON));
+
+        Expense expense = processor.processReceipt(receiptImage);
+
+        assertThat(expense.getDescription()).isEqualTo("Store");
         server.verify();
     }
 }

@@ -20,6 +20,7 @@ services:
     environment:
       SPRING_PROFILES_ACTIVE: prod
       AUTH_ISSUER_URI: ${AUTH_ISSUER_URI:-http://localhost:9000}
+      JWK_SET_URI: ${JWK_SET_URI:-http://host.docker.internal:9000/oauth2/jwks}
       ALLOWED_ORIGIN_PATTERNS: ${ALLOWED_ORIGIN_PATTERNS:-http://localhost:5173}
       SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/expensedb
       SPRING_DATASOURCE_USERNAME: postgres

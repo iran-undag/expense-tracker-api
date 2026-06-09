@@ -32,9 +32,10 @@ public class ReceiptProcessorConfig {
     @Bean
     @ConditionalOnProperty(name = "receipt.processor.provider", havingValue = "openvino")
     public ReceiptProcessor openVinoReceiptProcessor(
+            RestTemplate restTemplate,
             ObjectMapper objectMapper,
             @Value("${openvino.vision.base-url}") String baseUrl,
             @Value("${openvino.vision.chat-path}") String chatPath) {
-        return new OpenVinoReceiptProcessor(new RestTemplate(), objectMapper, baseUrl, chatPath);
+        return new OpenVinoReceiptProcessor(restTemplate, objectMapper, baseUrl, chatPath);
     }
 }

@@ -10,7 +10,9 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest(properties = {
@@ -37,5 +39,30 @@ class ObservabilityConfigTest {
         mockMvc.perform(get("/actuator/prometheus"))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("# HELP")));
+    }
+
+    @Test
+    void requestWithCorrelationId_shouldEchoHeader() throws Exception {
+        mockMvc.perform(get("/actuator/health")
+                        .header(CorrelationId.HEADER_NAME, "test-correlation-id"))
+                .andExpect(status().isOk())
+                .andExpect(header().string(CorrelationId.HEADER_NAME, "test-correlation-id"));
+    }
+
+    @Test
+    void requestWithoutCorrelationId_shouldGenerateHeader() throws Exception {
+        mockMvc.perform(get("/actuator/health"))
+                .andExpect(status().isOk())
+                .andExpect(header().exists(CorrelationId.HEADER_NAME));
+    }
+
+    @Test
+    void corsPreflight_shouldAllowCorrelationIdHeader() throws Exception {
+        mockMvc.perform(options("/actuator/health")
+                        .header("Origin", "http://localhost:5173")
+                        .header("Access-Control-Request-Method", "GET")
+                        .header("Access-Control-Request-Headers", CorrelationId.HEADER_NAME))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Access-Control-Allow-Headers", containsString(CorrelationId.HEADER_NAME)));
     }
 }

@@ -1,6 +1,6 @@
 # Expense Tracker API
 
-A backend API for managing and tracking personal or organizational expenses with local/cloud AI capability to read receipt images.
+A demo backend API for managing and tracking personal or organizational expenses with local/cloud AI capability to read receipt images.
 
 ## Features
 
@@ -11,6 +11,7 @@ A backend API for managing and tracking personal or organizational expenses with
 - Support for multiple users (User-scoped data access)
 - Extensible for budgeting and reporting integrations
 - RESTful endpoints for easy frontend integration
+- Request correlation with `X-Correlation-Id` for cross-service log lookup
 
 ## Technology Stack
 
@@ -112,6 +113,29 @@ Swagger/OpenAPI documentation is available at `http://localhost:8081/swagger-ui/
 
 > For a detailed API reference, see the Swagger docs or consult the source code.
 
+## Observability
+
+Every HTTP request is associated with an `X-Correlation-Id`.
+
+- If the caller sends `X-Correlation-Id`, the API reuses it.
+- If the caller omits it, the API generates a UUID.
+- The same value is returned in the response header.
+- Logs include `correlationId=...`.
+- OpenVINO receipt-processing calls propagate the same `X-Correlation-Id` header.
+
+Example:
+
+```bash
+curl -i http://localhost:8081/actuator/health \
+  -H "X-Correlation-Id: manual-test-123"
+```
+
+Search API logs for:
+
+```text
+correlationId=manual-test-123
+```
+
 ## License
 
 This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
@@ -135,7 +159,13 @@ This composes the app with the `prod` Spring profile. Copy `.env.sample` to `.en
 - `OLLAMA_BASE_URL` — Ollama server URL (default: `http://host.docker.internal:11434`)
 - `OPENVINO_BASE_URL` — OpenVINO server URL (default: `http://host.docker.internal:8001`)
 - `AZURE_DOCUMENT_AI_ENDPOINT` & `AZURE_DOCUMENT_AI_KEY` — For Azure provider
-- `AUTH_ISSUER_URI` & `ALLOWED_ORIGIN_PATTERNS` — For CORS and auth configuration
+- `AUTH_ISSUER_URI` — JWT issuer expected by the API; this must exactly match the access token `iss`, for example `http://localhost:9000`
+- `JWK_SET_URI` — Container-reachable JWK endpoint for verifying tokens, for example `http://host.docker.internal:9000/oauth2/jwks`
+- `ALLOWED_ORIGIN_PATTERNS` — Browser origins allowed by CORS
+
+To test API with profile=prod, get the token from expense-tracker-auth in dev mode. Check its README on how to get the token using Postman.
+
+Browser clients may send `X-Correlation-Id`; the API CORS configuration allows and exposes this header.
 
 The API is published on `http://localhost:8081`, matching the app's internal container port.
 
