@@ -168,13 +168,43 @@ This composes the app with the `prod` Spring profile. Copy `.env.sample` to `.en
 - `AZURE_DOCUMENT_AI_ENDPOINT` & `AZURE_DOCUMENT_AI_KEY` — For Azure provider
 - `AUTH_ISSUER_URI` — JWT issuer expected by the API; this must exactly match the access token `iss`, for example `http://localhost:9000`
 - `JWK_SET_URI` — Container-reachable JWK endpoint for verifying tokens, for example `http://host.docker.internal:9000/oauth2/jwks`
-- `ALLOWED_ORIGIN_PATTERNS` — Browser origins allowed by CORS
+- `ALLOWED_ORIGIN_PATTERNS` — Browser origins allowed by CORS, for example `http://localhost:5173`
 
-To test API with profile=prod, get the token from expense-tracker-auth in dev mode. Check its README on how to get the token using Postman.
+`ALLOWED_ORIGIN_PATTERNS` must be the browser origin shown in devtools, not a container URL. For local frontend runs, use `http://localhost:5173`; do not use `http://host.docker.internal:5173` for CORS.
 
 Browser clients may send `X-Correlation-Id`; the API CORS configuration allows and exposes this header.
 
 The API is published on `http://localhost:8081`, matching the app's internal container port.
+
+Verify CORS after changing `.env` and recreating the API container:
+
+```bash
+curl -i -X OPTIONS \
+  -H "Origin: http://localhost:5173" \
+  -H "Access-Control-Request-Method: POST" \
+  -H "Access-Control-Request-Headers: authorization,content-type,x-correlation-id" \
+  http://localhost:8081/api/expenses
+```
+
+Expected result: the response includes `Access-Control-Allow-Origin: http://localhost:5173`. A browser `NetworkError` on create/update/receipt requests usually means this preflight is failing.
+
+### Refresh Local Prod Database
+
+This deletes the local API PostgreSQL volume. Use only when you intentionally want to remove all local prod expense data.
+
+Check the volume name first:
+
+```bash
+docker volume ls | grep expense-tracker-api
+```
+
+Then refresh from the `expense-tracker-api` directory:
+
+```bash
+docker compose --env-file .env down
+docker volume rm expense-tracker-api_pgdata
+docker compose --env-file .env up --build -d
+```
 
 To test multiple local API replicas behind a reverse proxy:
 
