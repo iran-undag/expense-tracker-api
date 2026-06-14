@@ -1,6 +1,6 @@
 package com.example.expensetracker.config;
 
-import com.example.expensetracker.service.AzureDocumentReceiptProcessor;
+import com.example.expensetracker.service.AzureFunctionReceiptProcessor;
 import com.example.expensetracker.service.OllamaReceiptProcessor;
 import com.example.expensetracker.service.OpenVinoReceiptProcessor;
 import com.example.expensetracker.service.ReceiptProcessor;
@@ -18,9 +18,10 @@ public class ReceiptProcessorConfig {
     @Bean
     @ConditionalOnProperty(name = "receipt.processor.provider", havingValue = "azure")
     public ReceiptProcessor azureReceiptProcessor(
-            @Value("${azure.documentintelligence.endpoint}") String endpoint,
-            @Value("${azure.documentintelligence.key}") String key) {
-        return new AzureDocumentReceiptProcessor(endpoint, key);
+            RestTemplate restTemplate,
+            @Value("${receipt.processor.azure-function.url}") String functionUrl,
+            @Value("${receipt.processor.azure-function.key:}") String functionKey) {
+        return new AzureFunctionReceiptProcessor(restTemplate, functionUrl, functionKey);
     }
 
     @Bean

@@ -30,8 +30,8 @@ services:
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
       OPENVINO_BASE_URL: ${OPENVINO_BASE_URL:-http://host.docker.internal:8001}
       OPENVINO_CHAT_PATH: ${OPENVINO_CHAT_PATH:-/api/vision/chat}
-      AZURE_DOCUMENT_AI_ENDPOINT: ${AZURE_DOCUMENT_AI_ENDPOINT:-}
-      AZURE_DOCUMENT_AI_KEY: ${AZURE_DOCUMENT_AI_KEY:-}
+      RECEIPT_PROCESSOR_URL: ${RECEIPT_PROCESSOR_URL:-http://host.docker.internal:7071/api/process-receipt}
+      RECEIPT_PROCESSOR_FUNCTION_KEY: ${RECEIPT_PROCESSOR_FUNCTION_KEY:-}
     depends_on:
       db:
         condition: service_healthy

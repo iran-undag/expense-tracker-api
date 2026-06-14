@@ -17,8 +17,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @SpringBootTest(properties = {
         "receipt.processor.provider=azure",
-        "azure.documentintelligence.endpoint=https://example.com",
-        "azure.documentintelligence.key=test-key"
+        "receipt.processor.azure-function.url=http://localhost:7071/api/process-receipt"
 })
 @AutoConfigureMockMvc
 @AutoConfigureObservability

@@ -31,8 +31,8 @@ Demo Spring Boot service for the Expense Tracker demo application. It supports l
 - Docker & Docker Compose (for production-like local runs)
 - **AI provider** (optional, choose one for receipt processing):
   - Ollama server (local, default)
-  - Azure Document Intelligence resource
   - OpenVINO Vision API server
+  - Expense Tracker receipt processor function backed by Azure Document Intelligence
 
 ### Setup (profile=dev)
 
@@ -65,12 +65,13 @@ Demo Spring Boot service for the Expense Tracker demo application. It supports l
    ```
    Ensure OpenVINO Vision API is running on your machine.
 
-   **Azure (Cloud):**
+   **Azure Receipt Processor Function:**
    ```env
    AI_PROVIDER=azure
-   AZURE_DOCUMENT_AI_ENDPOINT=https://your-resource.cognitiveservices.azure.com/
-   AZURE_DOCUMENT_AI_KEY=your-api-key
+   RECEIPT_PROCESSOR_URL=http://localhost:7071/api/process-receipt
+   RECEIPT_PROCESSOR_FUNCTION_KEY=
    ```
+   Start `expense-tracker-receipt` locally or point `RECEIPT_PROCESSOR_URL` to the deployed Azure Function.
 
 4. **Build the project:**
    ```sh
@@ -128,7 +129,7 @@ Every HTTP request is associated with an `X-Correlation-Id`.
 - If the caller omits it, the API generates a UUID.
 - The same value is returned in the response header.
 - Logs include `correlationId=...`.
-- OpenVINO receipt-processing calls propagate the same `X-Correlation-Id` header.
+- OpenVINO and Azure receipt-processing calls propagate the same `X-Correlation-Id` header.
 
 Example:
 
@@ -162,10 +163,11 @@ docker compose --env-file .env up --build -d
 This composes the app with the `prod` Spring profile. Copy `.env.sample` to `.env` and edit environment values before starting.
 
 **Key environment variables in `.env`:**
-- `AI_PROVIDER` — Select `ollama`, `openvino`, or `azure` (default: `ollama`)
+- `AI_PROVIDER` — Select `ollama`, `openvino`, or `azure`; `azure` calls the external receipt processor function (default: `ollama`)
 - `OLLAMA_BASE_URL` — Ollama server URL (default: `http://host.docker.internal:11434`)
 - `OPENVINO_BASE_URL` — OpenVINO server URL (default: `http://host.docker.internal:8001`)
-- `AZURE_DOCUMENT_AI_ENDPOINT` & `AZURE_DOCUMENT_AI_KEY` — For Azure provider
+- `RECEIPT_PROCESSOR_URL` — Receipt processor function endpoint for `AI_PROVIDER=azure`
+- `RECEIPT_PROCESSOR_FUNCTION_KEY` — Function key for deployed receipt processor functions; leave blank for local function testing
 - `AUTH_ISSUER_URI` — JWT issuer expected by the API; this must exactly match the access token `iss`, for example `http://localhost:9000`
 - `JWK_SET_URI` — Container-reachable JWK endpoint for verifying tokens, for example `http://host.docker.internal:9000/oauth2/jwks`
 - `ALLOWED_ORIGIN_PATTERNS` — Browser origins allowed by CORS, for example `http://localhost:5173`
@@ -205,11 +207,3 @@ docker compose --env-file .env down
 docker volume rm expense-tracker-api_pgdata
 docker compose --env-file .env up --build -d
 ```
-
-To test multiple local API replicas behind a reverse proxy:
-
-```bash
-docker compose --env-file .env -f docker-compose.yml -f docker-compose.scale.yml up --build --scale app=3 -d
-```
-
-In scaled mode, only the Nginx proxy publishes `localhost:8081`; app replicas stay private on the Docker network.

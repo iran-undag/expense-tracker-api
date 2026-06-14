@@ -86,13 +86,6 @@
 			</exclusions>
 		</dependency>
 
-		<!-- Azure Document Intelligence -->
-		<dependency>
-			<groupId>com.azure</groupId>
-			<artifactId>azure-ai-documentintelligence</artifactId>
-			<version>1.0.7</version>
-		</dependency>
-
 		<!-- Spring AI Ollama -->
 		<dependency>
 			<groupId>org.springframework.ai</groupId>
