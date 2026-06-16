@@ -18,7 +18,7 @@ Demo Spring Boot service for the Expense Tracker demo application. It supports l
 
 - **Language**: Java 17
 - **Framework**: Spring Boot
-- **Database**: H2 for development/tests; PostgreSQL for production
+- **Database**: H2 for development/tests; SQL Server for production-like local runs and Azure SQL Database
 - **Build Tool**: Maven or the included maven wrapper
 - **Authentication**: Spring Security + JWT
 
@@ -154,7 +154,7 @@ This project is licensed under the MIT License. See the [LICENSE](LICENSE) file 
 
 ## Docker (profile=prod)
 
-Run the API with a PostgreSQL database using the Docker Compose plugin (creates a `db` service and the `app` service):
+Run the API with a SQL Server database using the Docker Compose plugin (creates a `db` service and the `app` service):
 
 ```bash
 docker compose --env-file .env up --build -d
@@ -171,6 +171,7 @@ This composes the app with the `prod` Spring profile. Copy `.env.sample` to `.en
 - `AUTH_ISSUER_URI` — JWT issuer expected by the API; this must exactly match the access token `iss`, for example `http://localhost:9000`
 - `JWK_SET_URI` — Container-reachable JWK endpoint for verifying tokens, for example `http://host.docker.internal:9000/oauth2/jwks`
 - `ALLOWED_ORIGIN_PATTERNS` — Browser origins allowed by CORS, for example `http://localhost:5173`
+- `MSSQL_SA_PASSWORD` — Local SQL Server `sa` password used by the compose `db` service and API datasource
 
 `ALLOWED_ORIGIN_PATTERNS` must be the browser origin shown in devtools, not a container URL. For local frontend runs, use `http://localhost:5173`; do not use `http://host.docker.internal:5173` for CORS.
 
@@ -192,7 +193,7 @@ Expected result: the response includes `Access-Control-Allow-Origin: http://loca
 
 ### Refresh Local Prod Database
 
-This deletes the local API PostgreSQL volume. Use only when you intentionally want to remove all local prod expense data.
+This deletes the local API SQL Server volume. Use only when you intentionally want to remove all local prod expense data.
 
 Check the volume name first:
 
@@ -204,6 +205,6 @@ Then refresh from the `expense-tracker-api` directory:
 
 ```bash
 docker compose --env-file .env down
-docker volume rm expense-tracker-api_pgdata
+docker volume rm expense-tracker-api_sqldata
 docker compose --env-file .env up --build -d
 ```

@@ -5,14 +5,14 @@ set -e
 # Determines host/port from SPRING_DATASOURCE_URL or SPRING_DATASOURCE_HOST/PORT
 
 if [ -n "$SPRING_DATASOURCE_URL" ]; then
-  # extract host[:port] from jdbc:postgresql://host:port/db
-  HOSTPORT=$(echo "$SPRING_DATASOURCE_URL" | sed -E 's#jdbc:postgresql://([^/]+).*#\1#')
+  # extract host[:port] from JDBC URLs such as jdbc:sqlserver://host:port;databaseName=db
+  HOSTPORT=$(echo "$SPRING_DATASOURCE_URL" | sed -E 's#jdbc:[a-z]+://([^;/]+).*#\1#')
   HOST=$(echo "$HOSTPORT" | cut -d: -f1)
   PORT=$(echo "$HOSTPORT" | cut -s -d: -f2)
-  PORT=${PORT:-5432}
+  PORT=${PORT:-1433}
 else
   HOST=${SPRING_DATASOURCE_HOST:-db}
-  PORT=${SPRING_DATASOURCE_PORT:-5432}
+  PORT=${SPRING_DATASOURCE_PORT:-1433}
 fi
 
 echo "Waiting for database at ${HOST}:${PORT}..."

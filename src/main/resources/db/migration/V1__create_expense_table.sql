@@ -1,7 +1,7 @@
 CREATE TABLE expense (
-    id BIGSERIAL PRIMARY KEY,
+    id BIGINT IDENTITY(1,1) PRIMARY KEY,
     description VARCHAR(255),
-    amount NUMERIC(19, 2) NOT NULL,
+    amount DECIMAL(19, 2) NOT NULL,
     date DATE,
     category VARCHAR(255)
 );
