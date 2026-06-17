@@ -36,8 +36,8 @@ jobs:
           registryUrl: ghcr.io
           registryUsername: ${{ github.actor }}
           registryPassword: ${{ secrets.GITHUB_TOKEN }}
-          containerAppName: ca-expense-tracker-api
-          resourceGroup: rg-expense-tracker
+          containerAppName: ca-expensetracker-sea
+          resourceGroup: rg-expensetracker-sea
           imageToBuild: ghcr.io/${{ github.repository_owner }}/ca-expense-tracker-api:${{ github.sha }}
           targetPort: 8081
           ingress: external
