@@ -1,8 +1,6 @@
 name: Trigger auto deployment for ca-expensetracker-sea-2
 
-# When this action will be executed
 on:
-  # Automatically trigger it when detected changes in repo
   push:
     branches: 
       [ main ]
@@ -10,15 +8,15 @@ on:
     - '**'
     - '.github/workflows/ca-expensetracker-sea-2-AutoDeployTrigger-65a65d55-1e56-420e-9ce3-ab41f0e895ae.yml'
 
-  # Allow manual trigger 
   workflow_dispatch:      
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
     permissions: 
-      id-token: write #This is required for requesting the OIDC JWT Token
-      contents: read #Required when GH token is used to authenticate with private repo
+      id-token: write
+      contents: read
+      packages: write      
 
     steps:
       - name: Checkout to the branch
@@ -35,15 +33,14 @@ jobs:
         uses: azure/container-apps-deploy-action@v2
         with:
           appSourcePath: ${{ github.workspace }}
-          _dockerfilePathKey_: _dockerfilePath_
-          _targetLabelKey_: _targetLabel_
+          dockerfilePath: Dockerfile          
           registryUrl: ghcr.io
-          registryUsername: ${{ secrets.CAEXPENSETRACKERSEA2_REGISTRY_USERNAME }}
-          registryPassword: ${{ secrets.CAEXPENSETRACKERSEA2_REGISTRY_PASSWORD }}
+          registryUsername: ${{ github.actor }}
+          registryPassword: ${{ secrets.GITHUB_TOKEN }}
           containerAppName: ca-expensetracker-sea-2
           resourceGroup: rg-expensetracker-sea
-          imageToBuild: ghcr.io/ca-expensetracker-sea-2:${{ github.sha }}
-          _buildArgumentsKey_: |
-            _buildArgumentsValues_
+          imageToBuild: ghcr.io/${{ github.repository_owner }}/ca-expensetracker-sea-2:${{ github.sha }}
+          targetPort: 8081
+          ingress: external
 
 
