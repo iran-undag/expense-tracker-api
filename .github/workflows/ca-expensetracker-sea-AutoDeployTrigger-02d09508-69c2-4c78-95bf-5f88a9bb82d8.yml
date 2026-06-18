@@ -19,7 +19,7 @@ jobs:
 
     steps:
       - name: Checkout to the branch
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
 
       - name: Azure Login
         uses: azure/login@v2
@@ -34,8 +34,8 @@ jobs:
           appSourcePath: ${{ github.workspace }}
           dockerfilePath: Dockerfile
           registryUrl: ghcr.io
-          registryUsername: ${{ github.actor }}
-          registryPassword: ${{ secrets.GITHUB_TOKEN }}
+          registryUsername: iran-undag
+          registryPassword: ${{ secrets.CAEXPENSETRACKERSEA2_GHCR_PAT }}
           containerAppName: ca-expensetracker-sea
           resourceGroup: rg-expensetracker-sea
           imageToBuild: ghcr.io/${{ github.repository_owner }}/ca-expensetracker-sea:${{ github.sha }}
