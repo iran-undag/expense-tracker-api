@@ -121,6 +121,11 @@
 			<groupId>org.flywaydb</groupId>
 			<artifactId>flyway-sqlserver</artifactId>
 		</dependency>
+
+		<dependency>
+  			<groupId>com.azure</groupId>
+  			<artifactId>azure-identity</artifactId>
+		</dependency>
 	</dependencies>
 
 	<dependencyManagement>
