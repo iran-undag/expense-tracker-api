@@ -22,6 +22,16 @@ Demo Spring Boot service for the Expense Tracker demo application. It supports l
 - **Build Tool**: Maven or the included maven wrapper
 - **Authentication**: Spring Security + JWT
 
+## User Identity
+
+Protected expense endpoints derive ownership from the authenticated token. For JWT principals, the API uses the first non-empty claim in this order:
+
+```text
+oid -> userId -> sub
+```
+
+`oid` is preferred for Microsoft Entra External ID because it is the stable object identifier for the user in the tenant. Local/mock tokens can continue using `userId` or `sub`.
+
 ## Getting Started
 
 ### Prerequisites
@@ -172,6 +182,8 @@ This composes the app with the `prod` Spring profile. Copy `.env.sample` to `.en
 - `JWK_SET_URI` — Container-reachable JWK endpoint for verifying tokens, for example `http://host.docker.internal:9000/oauth2/jwks`
 - `ALLOWED_ORIGIN_PATTERNS` — Browser origins allowed by CORS, for example `http://localhost:5173`
 - `MSSQL_SA_PASSWORD` — Local SQL Server `sa` password used by the compose `db` service and API datasource
+
+For Microsoft Entra External ID, set `AUTH_ISSUER_URI` and `JWK_SET_URI` from the tenant's OpenID Connect metadata. The frontend must request the API scope so calls include a bearer access token intended for this API.
 
 `ALLOWED_ORIGIN_PATTERNS` must be the browser origin shown in devtools, not a container URL. For local frontend runs, use `http://localhost:5173`; do not use `http://host.docker.internal:5173` for CORS.
 

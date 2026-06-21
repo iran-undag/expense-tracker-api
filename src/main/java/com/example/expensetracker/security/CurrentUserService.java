@@ -15,10 +15,16 @@ public class CurrentUserService {
 
         Object principal = authentication.getPrincipal();
         if (principal instanceof Jwt jwt) {
+            String oid = jwt.getClaimAsString("oid");
+            if (StringUtils.hasText(oid)) {
+                return oid;
+            }
+
             String userId = jwt.getClaimAsString("userId");
             if (StringUtils.hasText(userId)) {
                 return userId;
             }
+
             return jwt.getSubject();
         }
 
