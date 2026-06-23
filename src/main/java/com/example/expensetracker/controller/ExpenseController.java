@@ -3,12 +3,16 @@ package com.example.expensetracker.controller;
 import com.example.expensetracker.dto.ExpenseCreateRequestDto;
 import com.example.expensetracker.dto.ExpenseMapper;
 import com.example.expensetracker.dto.ExpenseResponseDto;
+import com.example.expensetracker.dto.PageResponseDto;
 import com.example.expensetracker.model.Expense;
 import com.example.expensetracker.security.CurrentUserService;
 import com.example.expensetracker.service.ExpenseService;
 import com.example.expensetracker.service.ReceiptProcessor;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -52,9 +56,11 @@ public class ExpenseController {
 
     @GetMapping
     @Operation(summary = "Get all expenses", description = "Returns a list of all expense records")
-    public ResponseEntity<List<ExpenseResponseDto>> getAllExpenses(Authentication authentication) {
+    public ResponseEntity<PageResponseDto<ExpenseResponseDto>> getAllExpenses(
+            @PageableDefault(size = 10, sort = "date", direction = Sort.Direction.DESC) Pageable pageable,
+            Authentication authentication) {
         String userId = currentUserService.getUserId(authentication);
-        return ResponseEntity.ok(ExpenseMapper.toDtoList(expenseService.getAllExpenses(userId)));
+        return ResponseEntity.ok(PageResponseDto.fromPage(expenseService.getAllExpenses(userId, pageable), ExpenseMapper::toDto));
     }
 
     @GetMapping("/{id}")
@@ -106,6 +112,18 @@ public class ExpenseController {
             @PathVariable int month, Authentication authentication) {
         String userId = currentUserService.getUserId(authentication);
         return ResponseEntity.ok(expenseService.getTotalExpensesForMonth(year, month, userId));
+    }
+
+    @GetMapping("/month/{year}/{month}")
+    public ResponseEntity<PageResponseDto<ExpenseResponseDto>> getExpensesForMonth(
+            @PathVariable int year,
+            @PathVariable int month,
+            @PageableDefault(size = 10, sort = "date", direction = Sort.Direction.DESC) Pageable pageable,
+            Authentication authentication) {
+        String userId = currentUserService.getUserId(authentication);
+        return ResponseEntity.ok(PageResponseDto.fromPage(
+                expenseService.getExpensesForMonth(year, month, userId, pageable),
+                ExpenseMapper::toDto));
     }
 
     @PostMapping(value = "/receipt", consumes = "multipart/form-data")

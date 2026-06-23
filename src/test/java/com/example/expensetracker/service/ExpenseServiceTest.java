@@ -4,6 +4,9 @@ import com.example.expensetracker.model.Expense;
 import com.example.expensetracker.repository.ExpenseRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -55,13 +58,15 @@ class ExpenseServiceTest {
     }
 
     @Test
-    void getAllExpenses_shouldReturnList() {
+    void getAllExpenses_shouldReturnPage() {
         List<Expense> expenses = List.of(new Expense(), new Expense());
-        when(expenseRepository.findByUserid("testuser")).thenReturn(expenses);
+        PageRequest pageable = PageRequest.of(0, 10);
+        when(expenseRepository.findByUserid("testuser", pageable))
+                .thenReturn(new PageImpl<>(expenses, pageable, expenses.size()));
 
-        List<Expense> result = expenseService.getAllExpenses("testuser");
+        Page<Expense> result = expenseService.getAllExpenses("testuser", pageable);
 
-        assertThat(result).hasSize(2);
+        assertThat(result.getContent()).hasSize(2);
     }
 
     @Test
@@ -77,5 +82,20 @@ class ExpenseServiceTest {
         BigDecimal total = expenseService.getTotalExpensesForMonth(2024, 5, "testuser");
 
         assertThat(total).isEqualTo(new BigDecimal("30.00"));
+    }
+
+    @Test
+    void getExpensesForMonth_shouldReturnDateRangePage() {
+        LocalDate start = LocalDate.of(2024, 5, 1);
+        LocalDate end = start.withDayOfMonth(start.lengthOfMonth());
+        PageRequest pageable = PageRequest.of(0, 10);
+        Expense expense = new Expense();
+        when(expenseRepository.findByUseridAndDateBetween("testuser", start, end, pageable))
+                .thenReturn(new PageImpl<>(List.of(expense), pageable, 1));
+
+        Page<Expense> result = expenseService.getExpensesForMonth(2024, 5, "testuser", pageable);
+
+        assertThat(result.getContent()).containsExactly(expense);
+        verify(expenseRepository).findByUseridAndDateBetween("testuser", start, end, pageable);
     }
 }

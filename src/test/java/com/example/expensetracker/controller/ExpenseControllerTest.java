@@ -12,6 +12,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.MediaType;
 import org.springframework.security.authentication.TestingAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -19,6 +22,7 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
@@ -56,19 +60,50 @@ class ExpenseControllerTest {
     private ObjectMapper objectMapper;
 
     @Test
-    void getAllExpenses_shouldReturnList() throws Exception {
+    void getAllExpenses_shouldReturnPagedList() throws Exception {
         Authentication authentication = new TestingAuthenticationToken("testuser", null);
         Expense expense = new Expense();
         expense.setDescription("Lunch");
         expense.setUserid("testuser");
         when(currentUserService.getUserId(authentication)).thenReturn("testuser");
-        when(expenseService.getAllExpenses("testuser")).thenReturn(List.of(expense));
+        PageRequest pageable = PageRequest.of(0, 10, Sort.by(Sort.Direction.DESC, "date"));
+        when(expenseService.getAllExpenses("testuser", pageable))
+                .thenReturn(new PageImpl<>(List.of(expense), pageable, 1));
 
         mockMvc.perform(get("/api/expenses").principal(authentication))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].description").value("Lunch"))
-                .andExpect(jsonPath("$[0].userid").value("testuser"))
-                .andExpect(jsonPath("$[0].username").doesNotExist());
+                .andExpect(jsonPath("$.content[0].description").value("Lunch"))
+                .andExpect(jsonPath("$.content[0].userid").value("testuser"))
+                .andExpect(jsonPath("$.content[0].username").doesNotExist())
+                .andExpect(jsonPath("$.page").value(0))
+                .andExpect(jsonPath("$.size").value(10))
+                .andExpect(jsonPath("$.totalElements").value(1))
+                .andExpect(jsonPath("$.totalPages").value(1));
+    }
+
+    @Test
+    void getExpensesForMonth_shouldReturnPagedList() throws Exception {
+        Authentication authentication = new TestingAuthenticationToken("testuser", null);
+        Expense expense = new Expense();
+        expense.setDescription("Groceries");
+        expense.setDate(LocalDate.of(2024, 5, 12));
+        expense.setUserid("testuser");
+        when(currentUserService.getUserId(authentication)).thenReturn("testuser");
+        PageRequest pageable = PageRequest.of(1, 5, Sort.by(Sort.Direction.DESC, "date"));
+        when(expenseService.getExpensesForMonth(2024, 5, "testuser", pageable))
+                .thenReturn(new PageImpl<>(List.of(expense), pageable, 6));
+
+        mockMvc.perform(get("/api/expenses/month/2024/5")
+                        .param("page", "1")
+                        .param("size", "5")
+                        .principal(authentication))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].description").value("Groceries"))
+                .andExpect(jsonPath("$.content[0].date").value("2024-05-12"))
+                .andExpect(jsonPath("$.page").value(1))
+                .andExpect(jsonPath("$.size").value(5))
+                .andExpect(jsonPath("$.totalElements").value(6))
+                .andExpect(jsonPath("$.totalPages").value(2));
     }
 
     @Test

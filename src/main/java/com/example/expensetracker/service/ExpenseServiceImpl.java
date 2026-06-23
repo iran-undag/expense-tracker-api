@@ -4,6 +4,8 @@ import com.example.expensetracker.model.Expense;
 import com.example.expensetracker.repository.ExpenseRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -55,8 +57,15 @@ public class ExpenseServiceImpl implements ExpenseService {
     }
 
     @Override
-    public List<Expense> getAllExpenses(String userId) {
-        return expenseRepository.findByUserid(userId);
+    public Page<Expense> getAllExpenses(String userId, Pageable pageable) {
+        return expenseRepository.findByUserid(userId, pageable);
+    }
+
+    @Override
+    public Page<Expense> getExpensesForMonth(int year, int month, String userId, Pageable pageable) {
+        LocalDate startDate = LocalDate.of(year, month, 1);
+        LocalDate endDate = startDate.withDayOfMonth(startDate.lengthOfMonth());
+        return expenseRepository.findByUseridAndDateBetween(userId, startDate, endDate, pageable);
     }
 
     @Override
