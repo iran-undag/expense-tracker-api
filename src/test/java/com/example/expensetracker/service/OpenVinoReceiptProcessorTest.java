@@ -7,7 +7,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.slf4j.MDC;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
@@ -29,6 +32,7 @@ import static org.springframework.test.web.client.match.MockRestRequestMatchers.
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withServerError;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
+@ExtendWith(OutputCaptureExtension.class)
 class OpenVinoReceiptProcessorTest {
 
     private RestTemplate restTemplate;
@@ -65,7 +69,7 @@ class OpenVinoReceiptProcessorTest {
     }
 
     @Test
-    void processReceipt_withOpenVinoResponse_shouldExtractExpense() {
+    void processReceipt_withOpenVinoResponse_shouldExtractExpense(CapturedOutput output) {
         String response = """
                 {
                   "response": "```json\\n{\\n  \\"merchantName\\": \\"SOUTH SUPERMARKET\\",\\n  \\"amount\\": 2466.65,\\n  \\"date\\": \\"04/05/2023\\",\\n  \\"category\\": \\"GROCERY SHOPPING\\"\\n}\\n```",
@@ -88,6 +92,8 @@ class OpenVinoReceiptProcessorTest {
         assertThat(expense.getAmount()).isEqualByComparingTo(new BigDecimal("2466.65"));
         assertThat(expense.getDate()).isEqualTo(LocalDate.of(2023, 4, 5));
         assertThat(expense.getCategory()).isEqualTo("GROCERY SHOPPING");
+        assertThat(output).containsPattern(
+                "provider=openvino, filename=resto-receipt2\\.jpg, outcome=success, elapsedSeconds=\\d+\\.\\d{3}");
         server.verify();
     }
 
@@ -116,7 +122,7 @@ class OpenVinoReceiptProcessorTest {
     }
 
     @Test
-    void processReceipt_withHttpFailure_shouldThrow() {
+    void processReceipt_withHttpFailure_shouldThrow(CapturedOutput output) {
         server.expect(once(), requestTo("http://localhost:8001/api/vision/chat"))
                 .andExpect(method(HttpMethod.POST))
                 .andRespond(withServerError().body("boom".getBytes(StandardCharsets.UTF_8)));
@@ -124,6 +130,8 @@ class OpenVinoReceiptProcessorTest {
         assertThatThrownBy(() -> processor.processReceipt(receiptImage))
                 .isInstanceOf(ReceiptProcessingException.class)
                 .hasMessageContaining("OpenVINO");
+        assertThat(output).containsPattern(
+                "provider=openvino, filename=resto-receipt2\\.jpg, outcome=failure, elapsedSeconds=\\d+\\.\\d{3}");
         server.verify();
     }
 

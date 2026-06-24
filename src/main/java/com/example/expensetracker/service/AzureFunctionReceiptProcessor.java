@@ -21,6 +21,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.Locale;
 
 @Slf4j
 public class AzureFunctionReceiptProcessor implements ReceiptProcessor {
@@ -52,10 +53,9 @@ public class AzureFunctionReceiptProcessor implements ReceiptProcessor {
                 headers.set(FUNCTION_KEY_HEADER, functionKey);
             }
 
-            ResponseEntity<ReceiptProcessorResponse> response = restTemplate.postForEntity(
-                    functionUrl,
-                    new HttpEntity<>(image.getBytes(), headers),
-                    ReceiptProcessorResponse.class);
+            HttpEntity<byte[]> request = new HttpEntity<>(image.getBytes(), headers);
+            ResponseEntity<ReceiptProcessorResponse> response = callReceiptProcessor(
+                    request, image.getOriginalFilename());
 
             ReceiptProcessorResponse body = response.getBody();
             if (body == null) {
@@ -81,6 +81,27 @@ public class AzureFunctionReceiptProcessor implements ReceiptProcessor {
         } catch (RestClientException e) {
             throw new ReceiptProcessingException("Failed to process receipt with Azure receipt processor function", e);
         }
+    }
+
+    private ResponseEntity<ReceiptProcessorResponse> callReceiptProcessor(
+            HttpEntity<byte[]> request,
+            String filename) {
+        long startNanos = System.nanoTime();
+        try {
+            ResponseEntity<ReceiptProcessorResponse> response = restTemplate.postForEntity(
+                    functionUrl, request, ReceiptProcessorResponse.class);
+            logElapsedTime(filename, "success", startNanos);
+            return response;
+        } catch (RestClientException e) {
+            logElapsedTime(filename, "failure", startNanos);
+            throw e;
+        }
+    }
+
+    private void logElapsedTime(String filename, String outcome, long startNanos) {
+        double elapsedSeconds = (System.nanoTime() - startNanos) / 1_000_000_000.0;
+        log.info("Receipt processor call completed: provider=azure, filename={}, outcome={}, elapsedSeconds={}",
+                filename, outcome, String.format(Locale.ROOT, "%.3f", elapsedSeconds));
     }
 
     private String extractErrorMessage(HttpStatusCodeException e) {

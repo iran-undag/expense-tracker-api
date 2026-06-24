@@ -4,6 +4,7 @@ import com.example.expensetracker.dto.ExpenseCreateRequestDto;
 import com.example.expensetracker.dto.ExpenseMapper;
 import com.example.expensetracker.dto.ExpenseResponseDto;
 import com.example.expensetracker.dto.PageResponseDto;
+import com.example.expensetracker.exception.InvalidSortPropertyException;
 import com.example.expensetracker.model.Expense;
 import com.example.expensetracker.security.CurrentUserService;
 import com.example.expensetracker.service.ExpenseService;
@@ -38,6 +39,9 @@ import java.util.List;
 @SecurityRequirement(name = "Bearer Authentication")
 public class ExpenseController {
 
+    private static final List<String> ALLOWED_SORT_PROPERTIES = List.of(
+            "id", "description", "amount", "date", "category", "userid");
+
     private final ExpenseService expenseService;
     private final ReceiptProcessor receiptProcessor;
     private final CurrentUserService currentUserService;
@@ -57,8 +61,9 @@ public class ExpenseController {
     @GetMapping
     @Operation(summary = "Get all expenses", description = "Returns a list of all expense records")
     public ResponseEntity<PageResponseDto<ExpenseResponseDto>> getAllExpenses(
-            @PageableDefault(size = 10, sort = "date", direction = Sort.Direction.DESC) Pageable pageable,
+            @PageableDefault(size = 10, sort = "id", direction = Sort.Direction.DESC) Pageable pageable,
             Authentication authentication) {
+        validateSortProperties(pageable);
         String userId = currentUserService.getUserId(authentication);
         return ResponseEntity.ok(PageResponseDto.fromPage(expenseService.getAllExpenses(userId, pageable), ExpenseMapper::toDto));
     }
@@ -137,5 +142,13 @@ public class ExpenseController {
         extractedExpense.setUserid(userId);
         log.info("Extracted expense details: {}", extractedExpense);
         return ResponseEntity.ok(ExpenseMapper.toDto(extractedExpense));
+    }
+
+    private void validateSortProperties(Pageable pageable) {
+        pageable.getSort().forEach(order -> {
+            if (!ALLOWED_SORT_PROPERTIES.contains(order.getProperty())) {
+                throw new InvalidSortPropertyException(order.getProperty(), ALLOWED_SORT_PROPERTIES);
+            }
+        });
     }
 }

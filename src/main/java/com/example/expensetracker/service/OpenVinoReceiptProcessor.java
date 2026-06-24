@@ -14,6 +14,8 @@ import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.Locale;
+
 @Slf4j
 public class OpenVinoReceiptProcessor implements ReceiptProcessor {
 
@@ -48,7 +50,8 @@ public class OpenVinoReceiptProcessor implements ReceiptProcessor {
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.MULTIPART_FORM_DATA);
 
-            String rawResponse = restTemplate.postForObject(chatUrl, new HttpEntity<>(body, headers), String.class);
+            HttpEntity<MultiValueMap<String, Object>> request = new HttpEntity<>(body, headers);
+            String rawResponse = callReceiptProcessor(request, image.getOriginalFilename());
             String content = extractResponseContent(rawResponse);
             log.info("OpenVINO AI processing completed. Received content: {}", content);
 
@@ -60,6 +63,26 @@ public class OpenVinoReceiptProcessor implements ReceiptProcessor {
         } catch (Exception e) {
             throw new ReceiptProcessingException("Failed to process receipt with OpenVINO", e);
         }
+    }
+
+    private String callReceiptProcessor(
+            HttpEntity<MultiValueMap<String, Object>> request,
+            String filename) {
+        long startNanos = System.nanoTime();
+        try {
+            String response = restTemplate.postForObject(chatUrl, request, String.class);
+            logElapsedTime(filename, "success", startNanos);
+            return response;
+        } catch (RestClientException e) {
+            logElapsedTime(filename, "failure", startNanos);
+            throw e;
+        }
+    }
+
+    private void logElapsedTime(String filename, String outcome, long startNanos) {
+        double elapsedSeconds = (System.nanoTime() - startNanos) / 1_000_000_000.0;
+        log.info("Receipt processor call completed: provider=openvino, filename={}, outcome={}, elapsedSeconds={}",
+                filename, outcome, String.format(Locale.ROOT, "%.3f", elapsedSeconds));
     }
 
     private String extractResponseContent(String rawResponse) {

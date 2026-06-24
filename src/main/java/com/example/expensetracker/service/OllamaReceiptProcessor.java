@@ -13,6 +13,7 @@ import org.springframework.util.MimeTypeUtils;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
+import java.util.Locale;
 
 @Slf4j
 public class OllamaReceiptProcessor implements ReceiptProcessor {
@@ -36,7 +37,7 @@ public class OllamaReceiptProcessor implements ReceiptProcessor {
                     "Extract expense details from this receipt image. Return ONLY a JSON object with fields: merchantName (string), amount (number), date (string YYYY-MM-DD), category (string). Do not wrap the JSON in markdown. Do not use ```json.",
                     List.of(new Media(mimeType, image.getResource())));
 
-            ChatResponse response = chatModel.call(new Prompt(userMessage));
+            ChatResponse response = callReceiptProcessor(new Prompt(userMessage), image.getOriginalFilename());
             String content = response.getResult().getOutput().getContent();
             log.info("Ollama AI processing completed. Received content: {}", content);
 
@@ -48,5 +49,23 @@ public class OllamaReceiptProcessor implements ReceiptProcessor {
         } catch (Exception e) {
             throw new ReceiptProcessingException("Failed to process receipt with Ollama", e);
         }
+    }
+
+    private ChatResponse callReceiptProcessor(Prompt prompt, String filename) {
+        long startNanos = System.nanoTime();
+        try {
+            ChatResponse response = chatModel.call(prompt);
+            logElapsedTime(filename, "success", startNanos);
+            return response;
+        } catch (RuntimeException e) {
+            logElapsedTime(filename, "failure", startNanos);
+            throw e;
+        }
+    }
+
+    private void logElapsedTime(String filename, String outcome, long startNanos) {
+        double elapsedSeconds = (System.nanoTime() - startNanos) / 1_000_000_000.0;
+        log.info("Receipt processor call completed: provider=ollama, filename={}, outcome={}, elapsedSeconds={}",
+                filename, outcome, String.format(Locale.ROOT, "%.3f", elapsedSeconds));
     }
 }

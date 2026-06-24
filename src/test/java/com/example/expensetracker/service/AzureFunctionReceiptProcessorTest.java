@@ -6,7 +6,10 @@ import com.example.expensetracker.model.Expense;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.slf4j.MDC;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
@@ -28,6 +31,7 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withServerError;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
+@ExtendWith(OutputCaptureExtension.class)
 class AzureFunctionReceiptProcessorTest {
 
     private RestTemplate restTemplate;
@@ -58,7 +62,7 @@ class AzureFunctionReceiptProcessorTest {
     }
 
     @Test
-    void processReceipt_withFunctionResponse_shouldExtractExpense() {
+    void processReceipt_withFunctionResponse_shouldExtractExpense(CapturedOutput output) {
         AzureFunctionReceiptProcessor processor = new AzureFunctionReceiptProcessor(
                 restTemplate,
                 "http://localhost:7071/api/process-receipt",
@@ -85,6 +89,8 @@ class AzureFunctionReceiptProcessorTest {
         assertThat(expense.getAmount()).isEqualByComparingTo(new BigDecimal("15.50"));
         assertThat(expense.getDate()).isEqualTo(LocalDate.of(2026, 5, 21));
         assertThat(expense.getCategory()).isEqualTo("Food");
+        assertThat(output).containsPattern(
+                "provider=azure, filename=test-receipt\\.jpg, outcome=success, elapsedSeconds=\\d+\\.\\d{3}");
         server.verify();
     }
 
@@ -108,7 +114,7 @@ class AzureFunctionReceiptProcessorTest {
     }
 
     @Test
-    void processReceipt_withHttpFailure_shouldThrow() {
+    void processReceipt_withHttpFailure_shouldThrow(CapturedOutput output) {
         AzureFunctionReceiptProcessor processor = new AzureFunctionReceiptProcessor(
                 restTemplate,
                 "http://localhost:7071/api/process-receipt",
@@ -120,6 +126,8 @@ class AzureFunctionReceiptProcessorTest {
         assertThatThrownBy(() -> processor.processReceipt(receiptImage))
                 .isInstanceOf(ReceiptProcessingException.class)
                 .hasMessageContaining("Azure receipt processor function");
+        assertThat(output).containsPattern(
+                "provider=azure, filename=test-receipt\\.jpg, outcome=failure, elapsedSeconds=\\d+\\.\\d{3}");
         server.verify();
     }
 

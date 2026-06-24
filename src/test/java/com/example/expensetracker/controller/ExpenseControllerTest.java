@@ -31,6 +31,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentCaptor.forClass;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -66,7 +67,7 @@ class ExpenseControllerTest {
         expense.setDescription("Lunch");
         expense.setUserid("testuser");
         when(currentUserService.getUserId(authentication)).thenReturn("testuser");
-        PageRequest pageable = PageRequest.of(0, 10, Sort.by(Sort.Direction.DESC, "date"));
+        PageRequest pageable = PageRequest.of(0, 10, Sort.by(Sort.Direction.DESC, "id"));
         when(expenseService.getAllExpenses("testuser", pageable))
                 .thenReturn(new PageImpl<>(List.of(expense), pageable, 1));
 
@@ -104,6 +105,22 @@ class ExpenseControllerTest {
                 .andExpect(jsonPath("$.size").value(5))
                 .andExpect(jsonPath("$.totalElements").value(6))
                 .andExpect(jsonPath("$.totalPages").value(2));
+    }
+
+    @Test
+    void getAllExpenses_shouldReturn400ForInvalidSortProperty() throws Exception {
+        Authentication authentication = new TestingAuthenticationToken("testuser", null);
+
+        mockMvc.perform(get("/api/expenses")
+                        .param("sort", "string")
+                        .principal(authentication))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.error").value("Bad Request"))
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString(
+                        "Invalid sort property 'string'")));
+
+        verifyNoInteractions(expenseService);
     }
 
     @Test
