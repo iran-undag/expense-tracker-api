@@ -10,14 +10,20 @@ import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
+import java.net.SocketTimeoutException;
+import java.net.http.HttpTimeoutException;
 import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 
 @ControllerAdvice
 @Slf4j
 public class GlobalExceptionHandler {
+
+    static final String AI_PROCESSING_TIMEOUT_MESSAGE =
+            "AI processing timed out. Increase the AI wait time and try again.";
 
     private final DataSize maxFileSize;
 
@@ -28,13 +34,15 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(ReceiptProcessingException.class)
     public ResponseEntity<Object> handleReceiptProcessingException(ReceiptProcessingException ex) {
         log.error("Receipt processing error: {}", ex.getMessage());
+        boolean timeout = isTimeout(ex);
+        HttpStatus status = timeout ? HttpStatus.GATEWAY_TIMEOUT : HttpStatus.BAD_REQUEST;
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("timestamp", LocalDateTime.now());
-        body.put("status", HttpStatus.BAD_REQUEST.value());
+        body.put("status", status.value());
         body.put("error", "Receipt Processing Failed");
-        body.put("message", ex.getMessage());
+        body.put("message", timeout ? AI_PROCESSING_TIMEOUT_MESSAGE : ex.getMessage());
 
-        return new ResponseEntity<>(body, HttpStatus.BAD_REQUEST);
+        return new ResponseEntity<>(body, status);
     }
 
     @ExceptionHandler(MaxUploadSizeExceededException.class)
@@ -117,5 +125,22 @@ public class GlobalExceptionHandler {
             return bytes / DataSize.ofKilobytes(1).toBytes() + "KB";
         }
         return bytes + "B";
+    }
+
+    private boolean isTimeout(Throwable throwable) {
+        Throwable current = throwable;
+        while (current != null) {
+            if (current instanceof SocketTimeoutException
+                    || current instanceof HttpTimeoutException
+                    || current instanceof TimeoutException) {
+                return true;
+            }
+            String message = current.getMessage();
+            if (message != null && message.toLowerCase().contains("timed out")) {
+                return true;
+            }
+            current = current.getCause();
+        }
+        return false;
     }
 }
