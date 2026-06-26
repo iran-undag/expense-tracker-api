@@ -7,6 +7,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -16,11 +17,13 @@ import java.util.Optional;
 @Service
 @RequiredArgsConstructor
 @Slf4j
+@Transactional(readOnly = true)
 public class ExpenseServiceImpl implements ExpenseService {
 
     private final ExpenseRepository expenseRepository;
 
     @Override
+    @Transactional
     public Expense saveExpense(Expense expense) {
         log.info("Connecting to database to save expense...");
         if (expense.getDate() == null) {
@@ -69,6 +72,7 @@ public class ExpenseServiceImpl implements ExpenseService {
     }
 
     @Override
+    @Transactional
     public Expense updateExpense(Long id, String userId, Expense updatedExpense) {
         log.info("Updating expense {} for user {}", id, userId);
         return expenseRepository.findByIdAndUserid(id, userId).map(existing -> {
@@ -81,6 +85,7 @@ public class ExpenseServiceImpl implements ExpenseService {
     }
 
     @Override
+    @Transactional
     public void deleteExpense(Long id, String userId) {
         log.info("Deleting expense {} for user {}", id, userId);
         Expense existing = expenseRepository.findByIdAndUserid(id, userId)

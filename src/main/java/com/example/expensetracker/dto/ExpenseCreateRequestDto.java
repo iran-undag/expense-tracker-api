@@ -20,7 +20,7 @@ public class ExpenseCreateRequestDto {
     @Schema(description = "Description of the expense", example = "Lunch at Subway")
     private String description;
 
-    @NotNull
+    @NotNull(message = "Amount is required")
     @Schema(description = "Amount spent", example = "12.50")
     private BigDecimal amount;
 

@@ -9,6 +9,7 @@ import com.example.expensetracker.model.Expense;
 import com.example.expensetracker.security.CurrentUserService;
 import com.example.expensetracker.service.ExpenseService;
 import com.example.expensetracker.service.ReceiptProcessor;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Pageable;
@@ -49,7 +50,7 @@ public class ExpenseController {
     @PostMapping
     @Operation(summary = "Create a new expense", description = "Creates a manual expense entry in the database")
     @ApiResponse(responseCode = "200", description = "Expense created successfully")
-    public ResponseEntity<ExpenseResponseDto> createExpense(@RequestBody ExpenseCreateRequestDto request, Authentication authentication) {
+    public ResponseEntity<ExpenseResponseDto> createExpense(@Valid @RequestBody ExpenseCreateRequestDto request, Authentication authentication) {
         log.info("Received request to create expense: {}", request);
         String userId = currentUserService.getUserId(authentication);
         Expense expenseEntity = ExpenseMapper.toEntity(request);
@@ -82,7 +83,7 @@ public class ExpenseController {
 
     @PutMapping("/{id}")
     @Operation(summary = "Update an expense", description = "Updates an existing expense entry")
-    public ResponseEntity<ExpenseResponseDto> updateExpense(@PathVariable Long id, @RequestBody ExpenseCreateRequestDto request, Authentication authentication) {
+    public ResponseEntity<ExpenseResponseDto> updateExpense(@PathVariable Long id, @Valid @RequestBody ExpenseCreateRequestDto request, Authentication authentication) {
         try {
             String userId = currentUserService.getUserId(authentication);
             Expense updatedExpense = expenseService.updateExpense(id, userId, ExpenseMapper.toEntity(request));

@@ -34,6 +34,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -150,6 +151,53 @@ class ExpenseControllerTest {
         var expenseCaptor = forClass(Expense.class);
         verify(expenseService).saveExpense(expenseCaptor.capture());
         assertThat(expenseCaptor.getValue().getUserid()).isEqualTo("testuser");
+    }
+
+    @Test
+    void createExpense_shouldReturn400WhenAmountIsMissing() throws Exception {
+        Authentication authentication = new TestingAuthenticationToken("testuser", null);
+
+        mockMvc.perform(post("/api/expenses").principal(authentication)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"description\":\"Coffee\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.error").value("Bad Request"))
+                .andExpect(jsonPath("$.message").value("Validation failed"))
+                .andExpect(jsonPath("$.fields.amount").value("Amount is required"));
+
+        verifyNoInteractions(expenseService);
+    }
+
+    @Test
+    void updateExpense_shouldReturn400WhenAmountIsMissing() throws Exception {
+        Authentication authentication = new TestingAuthenticationToken("testuser", null);
+
+        mockMvc.perform(put("/api/expenses/1").principal(authentication)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"description\":\"Coffee\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.error").value("Bad Request"))
+                .andExpect(jsonPath("$.message").value("Validation failed"))
+                .andExpect(jsonPath("$.fields.amount").value("Amount is required"));
+
+        verifyNoInteractions(expenseService);
+    }
+
+    @Test
+    void createExpense_shouldReturnGenericMessageForMalformedJson() throws Exception {
+        Authentication authentication = new TestingAuthenticationToken("testuser", null);
+
+        mockMvc.perform(post("/api/expenses").principal(authentication)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.error").value("Bad Request"))
+                .andExpect(jsonPath("$.message").value("Malformed JSON request"));
+
+        verifyNoInteractions(expenseService);
     }
 
     @Test

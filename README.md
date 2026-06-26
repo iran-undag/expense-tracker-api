@@ -58,6 +58,13 @@ oid -> userId -> sub
    ```
    Edit `.env` and set your AI provider and other configuration variables.
 
+   AI provider calls use configurable timeouts:
+   ```env
+   AI_PROVIDER_CONNECT_TIMEOUT=5s
+   AI_PROVIDER_READ_TIMEOUT=30s
+   ```
+   These apply to Ollama, OpenVINO, and Azure receipt processing. Increase the read timeout if your receipt processor regularly takes longer than 30 seconds.
+
 3. **Select an AI Provider:**
 
    **Ollama (Local, Recommended):**
@@ -178,6 +185,8 @@ This composes the app with the `prod` Spring profile. Copy `.env.sample` to `.en
 - `OPENVINO_BASE_URL` — OpenVINO server URL (default: `http://host.docker.internal:8001`)
 - `RECEIPT_PROCESSOR_URL` — Receipt processor function endpoint for `AI_PROVIDER=azure`
 - `RECEIPT_PROCESSOR_FUNCTION_KEY` — Function key for deployed receipt processor functions; leave blank for local function testing
+- `AI_PROVIDER_CONNECT_TIMEOUT` — Connection timeout for Ollama, OpenVINO, and Azure receipt processing calls (default: `5s`)
+- `AI_PROVIDER_READ_TIMEOUT` — Read timeout for Ollama, OpenVINO, and Azure receipt processing calls (default: `30s`)
 - `AUTH_ISSUER_URI` — JWT issuer expected by the API; this must exactly match the access token `iss`, for example `http://localhost:9000`
 - `JWK_SET_URI` — Container-reachable JWK endpoint for verifying tokens, for example `http://host.docker.internal:9000/oauth2/jwks`
 - `ALLOWED_ORIGIN_PATTERNS` — Browser origins allowed by CORS, for example `http://localhost:5173`
