@@ -5,11 +5,14 @@ Demo Spring Boot service for the Expense Tracker demo application. It supports l
 ## Features
 
 - User authentication and secure session management (JWT)
-- CRUD (Create, Read, Update, Delete) operations for expenses and categories
-- Categorization of expenses (e.g. Food, Travel, Utilities)
-- Date-based expense queries and summaries
+- CRUD (Create, Read, Update, Delete) operations for expenses, categories, budgets, and recurring expenses
+- User-managed expense categories with default seed categories, colors, active/inactive state, and soft delete
+- Expense search and filtering by date range, category, amount range, and description query
+- Date-based expense queries, monthly summaries, category breakdowns, and spending trends
+- Monthly budget management with budget-vs-actual summaries
+- Recurring expense rules with generate-on-read materialization and duplicate-safe occurrence tracking
+- CSV import/export for expense records
 - Support for multiple users (User-scoped data access)
-- Extensible for budgeting and reporting integrations
 - RESTful endpoints for easy frontend integration
 - Upload receipt images for AI OCR extraction.
 - Request correlation with `X-Correlation-Id` for cross-service log lookup
@@ -131,12 +134,47 @@ Swagger/OpenAPI documentation is available at `http://localhost:8081/swagger-ui/
 #### Example Endpoints
 
 - `POST /api/auth/login` — Authenticate and obtain a mock JWT token
-- `GET /api/expenses` — List all expenses for the authenticated user
+- `GET /api/expenses` — List expenses for the authenticated user, with optional filters
 - `POST /api/expenses` — Add a new expense
 - `PUT /api/expenses/{id}` — Update an existing expense
 - `DELETE /api/expenses/{id}` — Delete an expense
+- `GET /api/budgets?year=2026&month=6` — List budgets for a month
+- `GET /api/budgets/summary?year=2026&month=6` — Compare budgeted and actual spending
+- `GET /api/categories` — List active categories
+- `GET /api/categories?includeInactive=true` — List all categories for management
+- `GET /api/reports/monthly-summary?year=2026&month=6` — Monthly totals and averages
+- `GET /api/reports/category-breakdown?fromDate=2026-06-01&toDate=2026-06-30` — Category analytics
+- `GET /api/reports/spending-trend?year=2026&month=6&months=6` — Rolling trend data
+- `GET /api/recurring-expenses` — List recurring expense rules and generate due expenses first
+- `POST /api/recurring-expenses` — Create a recurring expense rule
+- `GET /api/import-export/export?fromDate=2026-06-01&toDate=2026-06-30` — Download expense records as CSV
+- `POST /api/import-export/import` — Import expense records from CSV
 
 > For a detailed API reference, see the Swagger docs or consult the source code.
+
+## Recurring Expenses
+
+Recurring expenses are stored as rules in `recurring_expense`. The API uses generate-on-read rather than a background scheduler:
+
+- Read endpoints call `RecurringExpenseService.generateDueExpenses(userId, LocalDate.now())`.
+- Due rules create normal expense rows dated with each occurrence date.
+- `recurring_expense_occurrence` records `recurring_expense_id + occurrence_date` so repeated reads do not create duplicates.
+- Rules advance `nextRunDate` after generation and are deactivated after their `endDate` is passed.
+
+This approach is friendly to free-tier or sleep-prone hosting because generation happens when the user opens or refreshes the app.
+
+## Import/Export
+
+`/api/import-export/export` returns expense records as `text/csv` for a required date range.
+
+CSV columns:
+
+- `date`
+- `description`
+- `category`
+- `amount`
+
+`/api/import-export/import` accepts the same CSV format. Imported rows are appended as expenses. Invalid rows are reported in the response without rejecting the entire import file.
 
 ## Observability
 

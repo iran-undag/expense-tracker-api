@@ -7,8 +7,10 @@ import com.example.expensetracker.dto.PageResponseDto;
 import com.example.expensetracker.exception.InvalidSortPropertyException;
 import com.example.expensetracker.model.Expense;
 import com.example.expensetracker.security.CurrentUserService;
+import com.example.expensetracker.service.ExpenseFilterCriteria;
 import com.example.expensetracker.service.ExpenseService;
 import com.example.expensetracker.service.ReceiptProcessor;
+import com.example.expensetracker.service.RecurringExpenseService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -52,6 +54,7 @@ public class ExpenseController {
     private final ExpenseService expenseService;
     private final ReceiptProcessor receiptProcessor;
     private final CurrentUserService currentUserService;
+    private final RecurringExpenseService recurringExpenseService;
 
     @PostMapping
     @Operation(
@@ -80,6 +83,16 @@ public class ExpenseController {
         description = "Returns a list of all expense records"
     )
     public ResponseEntity<PageResponseDto<ExpenseResponseDto>> getAllExpenses(
+        @RequestParam(required = false) @DateTimeFormat(
+            iso = DateTimeFormat.ISO.DATE
+        ) LocalDate fromDate,
+        @RequestParam(required = false) @DateTimeFormat(
+            iso = DateTimeFormat.ISO.DATE
+        ) LocalDate toDate,
+        @RequestParam(required = false) String category,
+        @RequestParam(required = false) BigDecimal minAmount,
+        @RequestParam(required = false) BigDecimal maxAmount,
+        @RequestParam(required = false) String query,
         @PageableDefault(
             size = 10,
             sort = "id",
@@ -89,9 +102,21 @@ public class ExpenseController {
     ) {
         validateSortProperties(pageable);
         String userId = currentUserService.getUserId(authentication);
+        recurringExpenseService.generateDueExpenses(userId, LocalDate.now());
         return ResponseEntity.ok(
             PageResponseDto.fromPage(
-                expenseService.getAllExpenses(userId, pageable),
+                expenseService.getAllExpenses(
+                    userId,
+                    new ExpenseFilterCriteria(
+                        fromDate,
+                        toDate,
+                        category,
+                        minAmount,
+                        maxAmount,
+                        query
+                    ),
+                    pageable
+                ),
                 ExpenseMapper::toDto
             )
         );
@@ -109,6 +134,7 @@ public class ExpenseController {
         Authentication authentication
     ) {
         String userId = currentUserService.getUserId(authentication);
+        recurringExpenseService.generateDueExpenses(userId, LocalDate.now());
         return expenseService
             .getExpenseById(id, userId)
             .map(ExpenseMapper::toDto)
@@ -165,6 +191,7 @@ public class ExpenseController {
         Authentication authentication
     ) {
         String userId = currentUserService.getUserId(authentication);
+        recurringExpenseService.generateDueExpenses(userId, LocalDate.now());
         return ResponseEntity.ok(
             ExpenseMapper.toDtoList(
                 expenseService.getExpensesByDate(date, userId)
@@ -179,6 +206,7 @@ public class ExpenseController {
         Authentication authentication
     ) {
         String userId = currentUserService.getUserId(authentication);
+        recurringExpenseService.generateDueExpenses(userId, LocalDate.now());
         return ResponseEntity.ok(
             expenseService.getTotalExpensesForMonth(year, month, userId)
         );
@@ -198,6 +226,7 @@ public class ExpenseController {
         Authentication authentication
     ) {
         String userId = currentUserService.getUserId(authentication);
+        recurringExpenseService.generateDueExpenses(userId, LocalDate.now());
         return ResponseEntity.ok(
             PageResponseDto.fromPage(
                 expenseService.getExpensesForMonth(

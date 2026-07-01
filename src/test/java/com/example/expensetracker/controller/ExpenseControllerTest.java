@@ -3,8 +3,10 @@ package com.example.expensetracker.controller;
 import com.example.expensetracker.dto.ExpenseCreateRequestDto;
 import com.example.expensetracker.model.Expense;
 import com.example.expensetracker.security.CurrentUserService;
+import com.example.expensetracker.service.ExpenseFilterCriteria;
 import com.example.expensetracker.service.ExpenseService;
 import com.example.expensetracker.service.ReceiptProcessor;
+import com.example.expensetracker.service.RecurringExpenseService;
 import com.example.expensetracker.security.JwtTokenProvider;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
@@ -58,6 +60,9 @@ class ExpenseControllerTest {
     @MockBean
     private CurrentUserService currentUserService;
 
+    @MockBean
+    private RecurringExpenseService recurringExpenseService;
+
     @Autowired
     private ObjectMapper objectMapper;
 
@@ -69,7 +74,7 @@ class ExpenseControllerTest {
         expense.setUserid("testuser");
         when(currentUserService.getUserId(authentication)).thenReturn("testuser");
         PageRequest pageable = PageRequest.of(0, 10, Sort.by(Sort.Direction.DESC, "id"));
-        when(expenseService.getAllExpenses("testuser", pageable))
+        when(expenseService.getAllExpenses(any(), any(), any()))
                 .thenReturn(new PageImpl<>(List.of(expense), pageable, 1));
 
         mockMvc.perform(get("/api/expenses").principal(authentication))
@@ -81,6 +86,46 @@ class ExpenseControllerTest {
                 .andExpect(jsonPath("$.size").value(10))
                 .andExpect(jsonPath("$.totalElements").value(1))
                 .andExpect(jsonPath("$.totalPages").value(1));
+    }
+
+    @Test
+    void getAllExpenses_shouldPassFiltersToService() throws Exception {
+        Authentication authentication = new TestingAuthenticationToken("testuser", null);
+        when(currentUserService.getUserId(authentication)).thenReturn("testuser");
+        PageRequest pageable = PageRequest.of(0, 5, Sort.by(Sort.Direction.DESC, "amount"));
+        when(expenseService.getAllExpenses(any(), any(), any()))
+                .thenReturn(new PageImpl<>(List.of(), pageable, 0));
+
+        mockMvc.perform(get("/api/expenses")
+                        .param("fromDate", "2026-06-01")
+                        .param("toDate", "2026-06-30")
+                        .param("category", "Food")
+                        .param("minAmount", "10.00")
+                        .param("maxAmount", "50.00")
+                        .param("query", "lunch")
+                        .param("page", "0")
+                        .param("size", "5")
+                        .param("sort", "amount,desc")
+                        .principal(authentication))
+                .andExpect(status().isOk());
+
+        var filterCaptor = forClass(ExpenseFilterCriteria.class);
+        var pageableCaptor = forClass(org.springframework.data.domain.Pageable.class);
+        verify(expenseService).getAllExpenses(
+                org.mockito.ArgumentMatchers.eq("testuser"),
+                filterCaptor.capture(),
+                pageableCaptor.capture());
+
+        ExpenseFilterCriteria filters = filterCaptor.getValue();
+        assertThat(filters.fromDate()).isEqualTo(LocalDate.of(2026, 6, 1));
+        assertThat(filters.toDate()).isEqualTo(LocalDate.of(2026, 6, 30));
+        assertThat(filters.category()).isEqualTo("Food");
+        assertThat(filters.minAmount()).isEqualByComparingTo("10.00");
+        assertThat(filters.maxAmount()).isEqualByComparingTo("50.00");
+        assertThat(filters.query()).isEqualTo("lunch");
+        assertThat(pageableCaptor.getValue().getPageSize()).isEqualTo(5);
+        assertThat(pageableCaptor.getValue().getSort().getOrderFor("amount").getDirection())
+                .isEqualTo(Sort.Direction.DESC);
     }
 
     @Test

@@ -6,6 +6,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -60,8 +61,8 @@ public class ExpenseServiceImpl implements ExpenseService {
     }
 
     @Override
-    public Page<Expense> getAllExpenses(String userId, Pageable pageable) {
-        return expenseRepository.findByUserid(userId, pageable);
+    public Page<Expense> getAllExpenses(String userId, ExpenseFilterCriteria filters, Pageable pageable) {
+        return expenseRepository.findAll(matchesFilters(userId, filters), pageable);
     }
 
     @Override
@@ -91,5 +92,43 @@ public class ExpenseServiceImpl implements ExpenseService {
         Expense existing = expenseRepository.findByIdAndUserid(id, userId)
                 .orElseThrow(() -> new RuntimeException("Expense not found or you do not have permission to delete it"));
         expenseRepository.delete(existing);
+    }
+
+    private Specification<Expense> matchesFilters(String userId, ExpenseFilterCriteria filters) {
+        return (root, query, criteriaBuilder) -> {
+            var predicates = new java.util.ArrayList<jakarta.persistence.criteria.Predicate>();
+            predicates.add(criteriaBuilder.equal(root.get("userid"), userId));
+
+            if (filters == null) {
+                return criteriaBuilder.and(predicates.toArray(jakarta.persistence.criteria.Predicate[]::new));
+            }
+
+            if (filters.fromDate() != null) {
+                predicates.add(criteriaBuilder.greaterThanOrEqualTo(root.get("date"), filters.fromDate()));
+            }
+            if (filters.toDate() != null) {
+                predicates.add(criteriaBuilder.lessThanOrEqualTo(root.get("date"), filters.toDate()));
+            }
+            if (filters.category() != null && !filters.category().isBlank()) {
+                predicates.add(criteriaBuilder.equal(
+                    criteriaBuilder.lower(root.get("category")),
+                    filters.category().trim().toLowerCase()
+                ));
+            }
+            if (filters.minAmount() != null) {
+                predicates.add(criteriaBuilder.greaterThanOrEqualTo(root.get("amount"), filters.minAmount()));
+            }
+            if (filters.maxAmount() != null) {
+                predicates.add(criteriaBuilder.lessThanOrEqualTo(root.get("amount"), filters.maxAmount()));
+            }
+            if (filters.query() != null && !filters.query().isBlank()) {
+                predicates.add(criteriaBuilder.like(
+                    criteriaBuilder.lower(root.get("description")),
+                    "%" + filters.query().trim().toLowerCase() + "%"
+                ));
+            }
+
+            return criteriaBuilder.and(predicates.toArray(jakarta.persistence.criteria.Predicate[]::new));
+        };
     }
 }

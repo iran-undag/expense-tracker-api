@@ -14,7 +14,7 @@ public interface ExpenseService {
     Optional<Expense> getExpenseById(Long id, String userId);
     List<Expense> getExpensesByDate(LocalDate date, String userId);
     BigDecimal getTotalExpensesForMonth(int year, int month, String userId);
-    Page<Expense> getAllExpenses(String userId, Pageable pageable);
+    Page<Expense> getAllExpenses(String userId, ExpenseFilterCriteria filters, Pageable pageable);
     Page<Expense> getExpensesForMonth(int year, int month, String userId, Pageable pageable);
     Expense updateExpense(Long id, String userId, Expense expense);
     void deleteExpense(Long id, String userId);

@@ -2,6 +2,7 @@ package com.example.expensetracker.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 import com.example.expensetracker.model.Expense;
@@ -15,6 +16,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
@@ -66,12 +68,13 @@ class ExpenseServiceTest {
     void getAllExpenses_shouldReturnPage() {
         List<Expense> expenses = List.of(new Expense(), new Expense());
         PageRequest pageable = PageRequest.of(0, 10);
-        when(expenseRepository.findByUserid("testuser", pageable)).thenReturn(
+        when(expenseRepository.findAll(any(Specification.class), eq(pageable))).thenReturn(
             new PageImpl<>(expenses, pageable, expenses.size())
         );
 
         Page<Expense> result = expenseService.getAllExpenses(
             "testuser",
+            new ExpenseFilterCriteria(null, null, null, null, null, null),
             pageable
         );
 
@@ -131,4 +134,5 @@ class ExpenseServiceTest {
             pageable
         );
     }
+
 }
