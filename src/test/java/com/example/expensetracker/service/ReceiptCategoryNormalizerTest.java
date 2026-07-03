@@ -82,6 +82,36 @@ class ReceiptCategoryNormalizerTest {
     }
 
     @Test
+    void normalize_withOtherCategoryAndSupermarketMerchant_shouldReturnGroceries() {
+        Expense expense = Expense.builder()
+            .category("Other")
+            .description("GRAND UNION SUPERMARKET, INC.")
+            .build();
+
+        assertThat(normalizer.normalize(expense, categories)).isEqualTo("Groceries");
+    }
+
+    @Test
+    void normalize_withOtherCategoryAndGasReceiptType_shouldReturnTransport() {
+        Expense expense = Expense.builder()
+            .category("Other")
+            .receiptType("Fuel&Energy.Gas")
+            .build();
+
+        assertThat(normalizer.normalize(expense, categories)).isEqualTo("Transport");
+    }
+
+    @Test
+    void normalize_withNonFallbackExactCategory_shouldIgnoreMerchantKeyword() {
+        Expense expense = Expense.builder()
+            .category("Food")
+            .description("GRAND UNION SUPERMARKET, INC.")
+            .build();
+
+        assertThat(normalizer.normalize(expense, categories)).isEqualTo("Food");
+    }
+
+    @Test
     void normalize_withUnknownCategory_shouldReturnOther() {
         Expense expense = Expense.builder()
             .category("General")

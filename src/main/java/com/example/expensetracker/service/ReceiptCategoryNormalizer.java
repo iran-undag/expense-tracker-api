@@ -37,7 +37,7 @@ public class ReceiptCategoryNormalizer {
             return FALLBACK_CATEGORY;
         }
 
-        Optional<String> exactMatch = findExactMatch(expense.getCategory(), categoriesByKey);
+        Optional<String> exactMatch = findExactNonFallbackMatch(expense.getCategory(), categoriesByKey);
         if (exactMatch.isPresent()) {
             return exactMatch.get();
         }
@@ -67,6 +67,11 @@ public class ReceiptCategoryNormalizer {
             return Optional.empty();
         }
         return Optional.ofNullable(categoriesByKey.get(key(category)));
+    }
+
+    private Optional<String> findExactNonFallbackMatch(String category, Map<String, String> categoriesByKey) {
+        Optional<String> exactMatch = findExactMatch(category, categoriesByKey);
+        return exactMatch.filter(match -> !key(FALLBACK_CATEGORY).equals(key(match)));
     }
 
     private Optional<String> findKeywordMatch(String value, Map<String, String> categoriesByKey) {
