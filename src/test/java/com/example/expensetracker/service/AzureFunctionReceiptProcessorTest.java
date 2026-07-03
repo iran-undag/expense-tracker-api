@@ -114,6 +114,33 @@ class AzureFunctionReceiptProcessorTest {
     }
 
     @Test
+    void processReceipt_withReceiptTypeAndItems_shouldExtractCategoryEvidence() {
+        AzureFunctionReceiptProcessor processor = new AzureFunctionReceiptProcessor(
+                restTemplate,
+                "http://localhost:7071/api/process-receipt",
+                "");
+
+        server.expect(once(), requestTo("http://localhost:7071/api/process-receipt"))
+                .andRespond(withSuccess("""
+                        {
+                          "description": "Fuel Stop",
+                          "amount": 45.00,
+                          "date": "2026-05-21",
+                          "receiptType": "Fuel&Energy.Gas",
+                          "itemDescriptions": ["Unleaded gasoline"]
+                        }
+                        """, MediaType.APPLICATION_JSON));
+
+        Expense expense = processor.processReceipt(receiptImage);
+
+        assertThat(expense.getDescription()).isEqualTo("Fuel Stop");
+        assertThat(expense.getCategory()).isNull();
+        assertThat(expense.getReceiptType()).isEqualTo("Fuel&Energy.Gas");
+        assertThat(expense.getReceiptItemDescriptions()).containsExactly("Unleaded gasoline");
+        server.verify();
+    }
+
+    @Test
     void processReceipt_withHttpFailure_shouldThrow(CapturedOutput output) {
         AzureFunctionReceiptProcessor processor = new AzureFunctionReceiptProcessor(
                 restTemplate,

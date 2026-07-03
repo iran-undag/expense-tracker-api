@@ -83,10 +83,11 @@ class OpenVinoReceiptProcessorTest {
                 .andExpect(method(HttpMethod.POST))
                 .andExpect(content().contentTypeCompatibleWith(MediaType.MULTIPART_FORM_DATA))
                 .andExpect(content().string(containsString("Extract expense details from this receipt image")))
+                .andExpect(content().string(containsString("Category must be exactly one of: Food, Groceries, Other")))
                 .andExpect(content().string(containsString("resto-receipt2.jpg")))
                 .andRespond(withSuccess(response, MediaType.APPLICATION_JSON));
 
-        Expense expense = processor.processReceipt(receiptImage);
+        Expense expense = processor.processReceipt(receiptImage, java.util.List.of("Food", "Groceries", "Other"));
 
         assertThat(expense.getDescription()).isEqualTo("SOUTH SUPERMARKET");
         assertThat(expense.getAmount()).isEqualByComparingTo(new BigDecimal("2466.65"));

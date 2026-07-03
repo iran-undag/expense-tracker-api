@@ -22,7 +22,9 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentCaptor.forClass;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(OutputCaptureExtension.class)
@@ -57,6 +59,21 @@ class OllamaReceiptProcessorTest {
         assertThat(expense.getCategory()).isEqualTo("Other");
         assertThat(output).containsPattern(
                 "provider=ollama, filename=test-receipt\\.jpg, outcome=success, elapsedSeconds=\\d+\\.\\d{3}");
+    }
+
+    @Test
+    void processReceipt_withAllowedCategories_shouldIncludeCategoryListInPrompt() {
+        when(chatModel.call(any(Prompt.class))).thenReturn(new ChatResponse(List.of(new Generation("""
+                {"merchantName":"Store","amount":12.50,"date":"2026-06-24","category":"Other"}
+                """))));
+
+        processor.processReceipt(receiptImage, List.of("Food", "Other"));
+
+        var promptCaptor = forClass(Prompt.class);
+        verify(chatModel).call(promptCaptor.capture());
+        String prompt = promptCaptor.getValue().getInstructions().get(0).getContent();
+        assertThat(prompt).contains("Category must be exactly one of: Food, Other");
+        assertThat(prompt).contains("Do not invent categories");
     }
 
     @Test

@@ -10,6 +10,7 @@ import com.example.expensetracker.security.CurrentUserService;
 import com.example.expensetracker.service.ExpenseFilterCriteria;
 import com.example.expensetracker.service.ExpenseService;
 import com.example.expensetracker.service.ReceiptProcessor;
+import com.example.expensetracker.service.ReceiptCategoryNormalizer;
 import com.example.expensetracker.service.RecurringExpenseService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -53,6 +54,7 @@ public class ExpenseController {
 
     private final ExpenseService expenseService;
     private final ReceiptProcessor receiptProcessor;
+    private final ReceiptCategoryNormalizer receiptCategoryNormalizer;
     private final CurrentUserService currentUserService;
     private final RecurringExpenseService recurringExpenseService;
 
@@ -260,8 +262,10 @@ public class ExpenseController {
             image.getOriginalFilename()
         );
         String userId = currentUserService.getUserId(authentication);
-        Expense extractedExpense = receiptProcessor.processReceipt(image);
+        List<String> activeCategoryNames = receiptCategoryNormalizer.getActiveCategoryNames(userId);
+        Expense extractedExpense = receiptProcessor.processReceipt(image, activeCategoryNames);
         extractedExpense.setUserid(userId);
+        extractedExpense.setCategory(receiptCategoryNormalizer.normalize(extractedExpense, activeCategoryNames));
         log.info("Extracted expense details: {}", extractedExpense);
         return ResponseEntity.ok(ExpenseMapper.toDto(extractedExpense));
     }

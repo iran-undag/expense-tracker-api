@@ -51,7 +51,13 @@ public class BudgetServiceImpl implements BudgetService {
     @Override
     public List<Budget> getBudgets(String userId, int year, int month) {
         validateMonth(month);
-        return budgetRepository.findByUseridAndBudgetYearAndBudgetMonthOrderByCategoryAsc(userId, year, month);
+        Map<String, Budget> latestByCategory = new LinkedHashMap<>();
+        for (Budget budget : budgetRepository.findEffectiveCandidates(userId, year, month)) {
+            latestByCategory.put(normalizeCategory(budget.getCategory()).toLowerCase(), budget);
+        }
+        return latestByCategory.values().stream()
+            .sorted(Comparator.comparing(Budget::getCategory, String.CASE_INSENSITIVE_ORDER))
+            .toList();
     }
 
     @Override

@@ -21,6 +21,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Locale;
 
 @Slf4j
@@ -41,7 +42,7 @@ public class AzureFunctionReceiptProcessor implements ReceiptProcessor {
     }
 
     @Override
-    public Expense processReceipt(MultipartFile image) {
+    public Expense processReceipt(MultipartFile image, List<String> allowedCategories) {
         log.info("Calling Azure receipt processor function for receipt: {}", image.getOriginalFilename());
         try {
             HttpHeaders headers = new HttpHeaders();
@@ -70,6 +71,8 @@ public class AzureFunctionReceiptProcessor implements ReceiptProcessor {
                     .amount(body.getAmount())
                     .date(body.getDate())
                     .category(body.getCategory())
+                    .receiptType(body.getReceiptType())
+                    .receiptItemDescriptions(body.getItemDescriptions())
                     .build();
         } catch (IOException e) {
             throw new ReceiptProcessingException("Failed to read receipt image", e);
@@ -130,12 +133,16 @@ public class AzureFunctionReceiptProcessor implements ReceiptProcessor {
         private BigDecimal amount;
         private LocalDate date;
         private String category;
+        private String receiptType;
+        private List<String> itemDescriptions;
 
         boolean isValid() {
             return StringUtils.hasText(description)
                     && amount != null
                     && date != null
-                    && StringUtils.hasText(category);
+                    && (StringUtils.hasText(category)
+                    || StringUtils.hasText(receiptType)
+                    || (itemDescriptions != null && !itemDescriptions.isEmpty()));
         }
     }
 }

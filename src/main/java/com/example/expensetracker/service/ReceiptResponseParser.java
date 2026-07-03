@@ -23,7 +23,7 @@ class ReceiptResponseParser {
         String merchantName = "Unknown Merchant";
         BigDecimal amount = BigDecimal.ZERO;
         LocalDate date = LocalDate.now();
-        String category = "General";
+        String category = "Other";
 
         try {
             String jsonContent = cleanJsonContent(content);
@@ -38,7 +38,7 @@ class ReceiptResponseParser {
                 date = parseLocalDate(root.path("date").asText(""));
             }
             if (root.has("category")) {
-                category = root.path("category").asText("General");
+                category = root.path("category").asText("Other");
             }
 
             return Expense.builder()

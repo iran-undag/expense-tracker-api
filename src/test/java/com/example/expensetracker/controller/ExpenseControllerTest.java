@@ -5,6 +5,7 @@ import com.example.expensetracker.model.Expense;
 import com.example.expensetracker.security.CurrentUserService;
 import com.example.expensetracker.service.ExpenseFilterCriteria;
 import com.example.expensetracker.service.ExpenseService;
+import com.example.expensetracker.service.ReceiptCategoryNormalizer;
 import com.example.expensetracker.service.ReceiptProcessor;
 import com.example.expensetracker.service.RecurringExpenseService;
 import com.example.expensetracker.security.JwtTokenProvider;
@@ -18,6 +19,7 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.security.authentication.TestingAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.test.context.ActiveProfiles;
@@ -30,11 +32,13 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentCaptor.forClass;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -53,6 +57,9 @@ class ExpenseControllerTest {
 
     @MockBean
     private ReceiptProcessor receiptProcessor;
+
+    @MockBean
+    private ReceiptCategoryNormalizer receiptCategoryNormalizer;
 
     @MockBean
     private JwtTokenProvider jwtTokenProvider;
@@ -243,6 +250,39 @@ class ExpenseControllerTest {
                 .andExpect(jsonPath("$.message").value("Malformed JSON request"));
 
         verifyNoInteractions(expenseService);
+    }
+
+    @Test
+    void processReceipt_shouldNormalizeCategoryBeforeReturningExpense() throws Exception {
+        Authentication authentication = new TestingAuthenticationToken("testuser", null);
+        List<String> activeCategories = List.of("Food", "Other");
+        MockMultipartFile image = new MockMultipartFile(
+                "image",
+                "receipt.jpg",
+                MediaType.IMAGE_JPEG_VALUE,
+                new byte[]{1, 2, 3});
+        Expense extractedExpense = Expense.builder()
+                .description("Corner Cafe")
+                .amount(new BigDecimal("18.25"))
+                .date(LocalDate.of(2026, 7, 3))
+                .category("Restaurant")
+                .build();
+
+        when(currentUserService.getUserId(authentication)).thenReturn("testuser");
+        when(receiptCategoryNormalizer.getActiveCategoryNames("testuser")).thenReturn(activeCategories);
+        when(receiptProcessor.processReceipt(any(), eq(activeCategories))).thenReturn(extractedExpense);
+        when(receiptCategoryNormalizer.normalize(extractedExpense, activeCategories)).thenReturn("Food");
+
+        mockMvc.perform(multipart("/api/expenses/receipt")
+                        .file(image)
+                        .principal(authentication))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.description").value("Corner Cafe"))
+                .andExpect(jsonPath("$.category").value("Food"))
+                .andExpect(jsonPath("$.userid").value("testuser"));
+
+        verify(receiptProcessor).processReceipt(any(), eq(activeCategories));
+        verify(receiptCategoryNormalizer).normalize(extractedExpense, activeCategories);
     }
 
     @Test

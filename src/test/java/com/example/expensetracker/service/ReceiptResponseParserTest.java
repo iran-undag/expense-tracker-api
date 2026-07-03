@@ -66,4 +66,19 @@ class ReceiptResponseParserTest {
         assertThat(expense.getDate()).isEqualTo(LocalDate.of(2023, 4, 5));
         assertThat(expense.getCategory()).isEqualTo("Food");
     }
+
+    @Test
+    void parse_withoutCategory_shouldDefaultToOther() {
+        String content = """
+                {
+                  "merchantName": "Corner Cafe",
+                  "amount": 18.25,
+                  "date": "2023-04-05"
+                }
+                """;
+
+        Expense expense = parser.parse(content);
+
+        assertThat(expense.getCategory()).isEqualTo("Other");
+    }
 }

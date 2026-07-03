@@ -14,6 +14,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 import java.util.Locale;
+import java.util.StringJoiner;
 
 @Slf4j
 public class OllamaReceiptProcessor implements ReceiptProcessor {
@@ -27,14 +28,14 @@ public class OllamaReceiptProcessor implements ReceiptProcessor {
     }
 
     @Override
-    public Expense processReceipt(MultipartFile image) {
+    public Expense processReceipt(MultipartFile image, List<String> allowedCategories) {
         log.info("Connecting to Ollama AI processor for receipt: {}", image.getOriginalFilename());
         try {
             String contentType = image.getContentType();
             org.springframework.util.MimeType mimeType = (contentType != null) ? org.springframework.util.MimeType.valueOf(contentType) : MimeTypeUtils.IMAGE_JPEG;
 
             UserMessage userMessage = new UserMessage(
-                    "Extract expense details from this receipt image. Return ONLY a JSON object with fields: merchantName (string), amount (number), date (string YYYY-MM-DD), category (string). Do not wrap the JSON in markdown. Do not use ```json.",
+                    buildReceiptExtractionPrompt(allowedCategories),
                     List.of(new Media(mimeType, image.getResource())));
 
             ChatResponse response = callReceiptProcessor(new Prompt(userMessage), image.getOriginalFilename());
@@ -67,5 +68,18 @@ public class OllamaReceiptProcessor implements ReceiptProcessor {
         double elapsedSeconds = (System.nanoTime() - startNanos) / 1_000_000_000.0;
         log.info("Receipt processor call completed: provider=ollama, filename={}, outcome={}, elapsedSeconds={}",
                 filename, outcome, String.format(Locale.ROOT, "%.3f", elapsedSeconds));
+    }
+
+    private String buildReceiptExtractionPrompt(List<String> allowedCategories) {
+        String prompt = "Extract expense details from this receipt image. Return ONLY a JSON object with fields: "
+                + "merchantName (string), amount (number), date (string YYYY-MM-DD), category (string). "
+                + "Do not wrap the JSON in markdown. Do not use ```json.";
+        if (allowedCategories == null || allowedCategories.isEmpty()) {
+            return prompt;
+        }
+
+        StringJoiner categoryList = new StringJoiner(", ");
+        allowedCategories.forEach(categoryList::add);
+        return prompt + " Category must be exactly one of: " + categoryList + ". Do not invent categories. If unsure, use Other.";
     }
 }

@@ -78,6 +78,34 @@ class BudgetServiceIntegrationTest {
         assertThat(transport.getActualAmount()).isEqualByComparingTo("0.00");
     }
 
+    @Test
+    void getBudgetSummary_shouldUseLatestPriorBudgetForFutureMonths() {
+        budgetRepository.saveAll(List.of(
+            budget("testuser", "Food", "10000.00", 2026, 6),
+            budget("testuser", "Food", "15000.00", 2026, 8),
+            budget("otheruser", "Food", "99999.00", 2026, 7)
+        ));
+
+        BudgetSummaryDto julyFood = find(budgetService.getBudgetSummary("testuser", 2026, 7), "Food");
+        BudgetSummaryDto septemberFood = find(budgetService.getBudgetSummary("testuser", 2026, 9), "Food");
+
+        assertThat(julyFood.getBudgetAmount()).isEqualByComparingTo("10000.00");
+        assertThat(septemberFood.getBudgetAmount()).isEqualByComparingTo("15000.00");
+    }
+
+    @Test
+    void saveBudget_shouldCreateSelectedMonthOverrideWithoutChangingPriorBudget() {
+        Budget june = budgetService.saveBudget("testuser", budget("Food", "10000.00", 2026, 6));
+
+        Budget july = budgetService.saveBudget("testuser", budget("Food", "12000.00", 2026, 7));
+
+        assertThat(july.getId()).isNotEqualTo(june.getId());
+        assertThat(budgetService.getBudgetSummary("testuser", 2026, 6).get(0).getBudgetAmount())
+            .isEqualByComparingTo("10000.00");
+        assertThat(budgetService.getBudgetSummary("testuser", 2026, 8).get(0).getBudgetAmount())
+            .isEqualByComparingTo("12000.00");
+    }
+
     private BudgetSummaryDto find(List<BudgetSummaryDto> summary, String category) {
         return summary.stream()
             .filter(item -> category.equals(item.getCategory()))

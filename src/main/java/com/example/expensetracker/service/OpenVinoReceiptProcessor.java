@@ -14,7 +14,9 @@ import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.List;
 import java.util.Locale;
+import java.util.StringJoiner;
 
 @Slf4j
 public class OpenVinoReceiptProcessor implements ReceiptProcessor {
@@ -40,11 +42,11 @@ public class OpenVinoReceiptProcessor implements ReceiptProcessor {
     }
 
     @Override
-    public Expense processReceipt(MultipartFile image) {
+    public Expense processReceipt(MultipartFile image, List<String> allowedCategories) {
         log.info("Connecting to OpenVINO AI processor for receipt: {}", image.getOriginalFilename());
         try {
             MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
-            body.add("prompt", RECEIPT_EXTRACTION_PROMPT);
+            body.add("prompt", buildReceiptExtractionPrompt(allowedCategories));
             body.add("image", image.getResource());
 
             HttpHeaders headers = new HttpHeaders();
@@ -108,5 +110,16 @@ public class OpenVinoReceiptProcessor implements ReceiptProcessor {
         String normalizedBaseUrl = baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
         String normalizedChatPath = chatPath.startsWith("/") ? chatPath : "/" + chatPath;
         return normalizedBaseUrl + normalizedChatPath;
+    }
+
+    private String buildReceiptExtractionPrompt(List<String> allowedCategories) {
+        if (allowedCategories == null || allowedCategories.isEmpty()) {
+            return RECEIPT_EXTRACTION_PROMPT;
+        }
+
+        StringJoiner categoryList = new StringJoiner(", ");
+        allowedCategories.forEach(categoryList::add);
+        return RECEIPT_EXTRACTION_PROMPT + " Category must be exactly one of: " + categoryList
+                + ". Do not invent categories. If unsure, use Other.";
     }
 }

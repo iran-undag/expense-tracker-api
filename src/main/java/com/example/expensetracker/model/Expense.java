@@ -5,6 +5,7 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Transient;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -13,6 +14,7 @@ import lombok.Setter;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.List;
 
 @Entity
 @Getter
@@ -41,4 +43,10 @@ public class Expense {
 
     @Schema(description = "User identifier associated with the expense", example = "user-123")
     private String userid;
+
+    @Transient
+    private String receiptType;
+
+    @Transient
+    private List<String> receiptItemDescriptions;
 }
