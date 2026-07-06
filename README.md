@@ -12,6 +12,7 @@ Demo Spring Boot service for the Expense Tracker demo application. It supports l
 - Monthly budget management with budget-vs-actual summaries
 - Recurring expense rules with generate-on-read materialization and duplicate-safe occurrence tracking
 - CSV import/export for expense records
+- Short-lived Azure Speech token endpoint for browser voice expense capture
 - Support for multiple users (User-scoped data access)
 - RESTful endpoints for easy frontend integration
 - Upload receipt images for AI OCR extraction.
@@ -46,6 +47,7 @@ oid -> userId -> sub
   - Ollama server (local, default)
   - OpenVINO Vision API server
   - Expense Tracker receipt processor function backed by Azure Document Intelligence
+- **Azure Speech resource** (optional, only for frontend voice expense capture)
 
 ### Setup (profile=dev)
 
@@ -92,6 +94,14 @@ oid -> userId -> sub
    RECEIPT_PROCESSOR_FUNCTION_KEY=
    ```
    Start `expense-tracker-receipt` locally or point `RECEIPT_PROCESSOR_URL` to the deployed Azure Function.
+
+   **Azure Speech Voice Input:**
+   ```env
+   AZURE_SPEECH_KEY=replace-me
+   AZURE_SPEECH_REGION=southeastasia
+   AZURE_SPEECH_TOKEN_URL=
+   ```
+   `AZURE_SPEECH_KEY` and `AZURE_SPEECH_REGION` enable `POST /api/speech/token`. `AZURE_SPEECH_TOKEN_URL` is optional; leave it blank to use `https://<AZURE_SPEECH_REGION>.api.cognitive.microsoft.com/sts/v1.0/issueToken`.
 
 4. **Build the project:**
    ```sh
@@ -149,8 +159,33 @@ Swagger/OpenAPI documentation is available at `http://localhost:8081/swagger-ui/
 - `POST /api/recurring-expenses` — Create a recurring expense rule
 - `GET /api/import-export/export?fromDate=2026-06-01&toDate=2026-06-30` — Download expense records as CSV
 - `POST /api/import-export/import` — Import expense records from CSV
+- `POST /api/speech/token` — Issue a short-lived Azure Speech token for browser voice input
 
 > For a detailed API reference, see the Swagger docs or consult the source code.
+
+## Voice Input
+
+The API supports the frontend Voice button through `POST /api/speech/token`.
+
+- The API exchanges `AZURE_SPEECH_KEY` for a short-lived Azure Speech authorization token.
+- The response includes the token, the configured speech region, and `expiresInSeconds`.
+- The frontend uses the token directly with Azure Speech SDK microphone recognition.
+- Raw microphone audio does not pass through this API.
+
+Required environment:
+
+```env
+AZURE_SPEECH_KEY=replace-me
+AZURE_SPEECH_REGION=southeastasia
+```
+
+Optional override:
+
+```env
+AZURE_SPEECH_TOKEN_URL=https://southeastasia.api.cognitive.microsoft.com/sts/v1.0/issueToken
+```
+
+If `AZURE_SPEECH_TOKEN_URL` is blank, the API builds the token endpoint from `AZURE_SPEECH_REGION`.
 
 ## Recurring Expenses
 
@@ -225,6 +260,9 @@ This composes the app with the `prod` Spring profile. Copy `.env.sample` to `.en
 - `RECEIPT_PROCESSOR_FUNCTION_KEY` — Function key for deployed receipt processor functions; leave blank for local function testing
 - `AI_PROVIDER_CONNECT_TIMEOUT` — Connection timeout for Ollama, OpenVINO, and Azure receipt processing calls (default: `5s`)
 - `AI_PROVIDER_READ_TIMEOUT` — Read timeout for Ollama, OpenVINO, and Azure receipt processing calls (default: `30s`)
+- `AZURE_SPEECH_KEY` — Azure Speech resource key used server-side to mint short-lived browser tokens
+- `AZURE_SPEECH_REGION` — Azure Speech resource region, for example `southeastasia`
+- `AZURE_SPEECH_TOKEN_URL` — Optional Speech token endpoint override; defaults to `https://<AZURE_SPEECH_REGION>.api.cognitive.microsoft.com/sts/v1.0/issueToken`
 - `AUTH_ISSUER_URI` — JWT issuer expected by the API; this must exactly match the access token `iss`, for example `http://localhost:9000`
 - `JWK_SET_URI` — Container-reachable JWK endpoint for verifying tokens, for example `http://host.docker.internal:9000/oauth2/jwks`
 - `ALLOWED_ORIGIN_PATTERNS` — Browser origins allowed by CORS, for example `http://localhost:5173`
