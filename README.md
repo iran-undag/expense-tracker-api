@@ -271,10 +271,32 @@ This composes the app with the `prod` Spring profile. Copy `.env.sample` to `.en
 - `CHATBOT_WARMUP_URL` — Server-to-server chatbot warm-up endpoint
 - `CHATBOT_WARMUP_KEY` — Shared 256-bit warm-up key stored in Key Vault and never exposed to the browser
 - `CHATBOT_WARMUP_COOLDOWN` — Per-user downstream warm-up cooldown, default `5m`
+- `CHATBOT_WARMUP_CONNECT_TIMEOUT` — Chatbot wake-up connection timeout, default `2s`
+- `CHATBOT_WARMUP_READ_TIMEOUT` — Chatbot wake-up response timeout, default `10s`
 - `AUTH_ISSUER_URI` — JWT issuer expected by the API; this must exactly match the access token `iss`, for example `http://localhost:9000`
 - `JWK_SET_URI` — Container-reachable JWK endpoint for verifying tokens, for example `http://host.docker.internal:9000/oauth2/jwks`
 - `ALLOWED_ORIGIN_PATTERNS` — Browser origins allowed by CORS, for example `http://localhost:5173`
 - `MSSQL_SA_PASSWORD` — Local SQL Server `sa` password used by the compose `db` service and API datasource
+
+### Chatbot Integration
+
+The API owns all browser-facing chatbot credentials and warm-up calls:
+
+- `POST /api/bot/direct-line/token` requires the normal bearer token and exchanges the server-side Direct Line secret for a conversation-scoped token.
+- Direct Line user IDs are opaque `dl_` identifiers backed by a short-lived user mapping; raw application user IDs are not sent to Direct Line.
+- `POST /api/bot/warmup` requires the normal bearer token and calls the chatbot's protected `/internal/warmup` endpoint.
+- Warm-up calls are limited to one downstream request per user during the configured five-minute cooldown.
+- Warm-up failures return `delayed` and do not fail login or other API behavior.
+- `CHATBOT_WARMUP_KEY` is server-to-server only and must match the chatbot service value.
+
+For local Docker Compose integration with the chatbot on host port 8082:
+
+```env
+CHATBOT_WARMUP_URL=http://host.docker.internal:8082/internal/warmup
+CHATBOT_WARMUP_KEY=<same-local-value-used-by-expense-tracker-chatbot>
+```
+
+Azure configuration is currently deferred. Before deploying, store both the Direct Line secret and chatbot warm-up key in Key Vault and configure the API Container App through secret references.
 
 For Microsoft Entra External ID, set `AUTH_ISSUER_URI` and `JWK_SET_URI` from the tenant's OpenID Connect metadata. The frontend must request the API scope so calls include a bearer access token intended for this API.
 
