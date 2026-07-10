@@ -53,6 +53,9 @@ services:
       AZURE_SPEECH_KEY: ${AZURE_SPEECH_KEY:-}
       AZURE_SPEECH_REGION: ${AZURE_SPEECH_REGION:-southeastasia}
       AZURE_SPEECH_TOKEN_URL: ${AZURE_SPEECH_TOKEN_URL:-}
+      AZURE_BOT_DIRECT_LINE_SECRET: ${AZURE_BOT_DIRECT_LINE_SECRET:-}
+      AZURE_BOT_DIRECT_LINE_TOKEN_URL: ${AZURE_BOT_DIRECT_LINE_TOKEN_URL:-https://directline.botframework.com/v3/directline/tokens/generate}
+      AZURE_BOT_DIRECT_LINE_TRUSTED_ORIGINS: ${AZURE_BOT_DIRECT_LINE_TRUSTED_ORIGINS:-http://localhost:5173}
     depends_on:
       db-init:
         condition: service_completed_successfully

@@ -160,6 +160,7 @@ Swagger/OpenAPI documentation is available at `http://localhost:8081/swagger-ui/
 - `GET /api/import-export/export?fromDate=2026-06-01&toDate=2026-06-30` — Download expense records as CSV
 - `POST /api/import-export/import` — Import expense records from CSV
 - `POST /api/speech/token` — Issue a short-lived Azure Speech token for browser voice input
+- `POST /api/bot/direct-line/token` — Exchange the server-side Direct Line secret for a conversation-scoped browser token
 
 > For a detailed API reference, see the Swagger docs or consult the source code.
 
@@ -263,6 +264,9 @@ This composes the app with the `prod` Spring profile. Copy `.env.sample` to `.en
 - `AZURE_SPEECH_KEY` — Azure Speech resource key used server-side to mint short-lived browser tokens
 - `AZURE_SPEECH_REGION` — Azure Speech resource region, for example `southeastasia`
 - `AZURE_SPEECH_TOKEN_URL` — Optional Speech token endpoint override; defaults to `https://<AZURE_SPEECH_REGION>.api.cognitive.microsoft.com/sts/v1.0/issueToken`
+- `AZURE_BOT_DIRECT_LINE_SECRET` — Direct Line channel secret used only by the authenticated server-side token broker
+- `AZURE_BOT_DIRECT_LINE_TOKEN_URL` — Direct Line token generation endpoint; use the regional endpoint when the bot is regionalized
+- `AZURE_BOT_DIRECT_LINE_TRUSTED_ORIGINS` — Comma-separated Web Chat origins embedded in generated tokens
 - `AUTH_ISSUER_URI` — JWT issuer expected by the API; this must exactly match the access token `iss`, for example `http://localhost:9000`
 - `JWK_SET_URI` — Container-reachable JWK endpoint for verifying tokens, for example `http://host.docker.internal:9000/oauth2/jwks`
 - `ALLOWED_ORIGIN_PATTERNS` — Browser origins allowed by CORS, for example `http://localhost:5173`
