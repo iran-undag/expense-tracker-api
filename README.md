@@ -161,6 +161,7 @@ Swagger/OpenAPI documentation is available at `http://localhost:8081/swagger-ui/
 - `POST /api/import-export/import` — Import expense records from CSV
 - `POST /api/speech/token` — Issue a short-lived Azure Speech token for browser voice input
 - `POST /api/bot/direct-line/token` — Exchange the server-side Direct Line secret for a conversation-scoped browser token
+- `POST /api/bot/warmup` — Best-effort authenticated wake-up for the scale-to-zero chatbot service
 
 > For a detailed API reference, see the Swagger docs or consult the source code.
 
@@ -267,6 +268,9 @@ This composes the app with the `prod` Spring profile. Copy `.env.sample` to `.en
 - `AZURE_BOT_DIRECT_LINE_SECRET` — Direct Line channel secret used only by the authenticated server-side token broker
 - `AZURE_BOT_DIRECT_LINE_TOKEN_URL` — Direct Line token generation endpoint; use the regional endpoint when the bot is regionalized
 - `AZURE_BOT_DIRECT_LINE_TRUSTED_ORIGINS` — Comma-separated Web Chat origins embedded in generated tokens
+- `CHATBOT_WARMUP_URL` — Server-to-server chatbot warm-up endpoint
+- `CHATBOT_WARMUP_KEY` — Shared 256-bit warm-up key stored in Key Vault and never exposed to the browser
+- `CHATBOT_WARMUP_COOLDOWN` — Per-user downstream warm-up cooldown, default `5m`
 - `AUTH_ISSUER_URI` — JWT issuer expected by the API; this must exactly match the access token `iss`, for example `http://localhost:9000`
 - `JWK_SET_URI` — Container-reachable JWK endpoint for verifying tokens, for example `http://host.docker.internal:9000/oauth2/jwks`
 - `ALLOWED_ORIGIN_PATTERNS` — Browser origins allowed by CORS, for example `http://localhost:5173`

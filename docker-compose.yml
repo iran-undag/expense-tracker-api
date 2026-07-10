@@ -56,6 +56,11 @@ services:
       AZURE_BOT_DIRECT_LINE_SECRET: ${AZURE_BOT_DIRECT_LINE_SECRET:-}
       AZURE_BOT_DIRECT_LINE_TOKEN_URL: ${AZURE_BOT_DIRECT_LINE_TOKEN_URL:-https://directline.botframework.com/v3/directline/tokens/generate}
       AZURE_BOT_DIRECT_LINE_TRUSTED_ORIGINS: ${AZURE_BOT_DIRECT_LINE_TRUSTED_ORIGINS:-http://localhost:5173}
+      CHATBOT_WARMUP_URL: ${CHATBOT_WARMUP_URL:-http://host.docker.internal:8082/internal/warmup}
+      CHATBOT_WARMUP_KEY: ${CHATBOT_WARMUP_KEY:-local-development-warmup-key-000000}
+      CHATBOT_WARMUP_COOLDOWN: ${CHATBOT_WARMUP_COOLDOWN:-5m}
+      CHATBOT_WARMUP_CONNECT_TIMEOUT: ${CHATBOT_WARMUP_CONNECT_TIMEOUT:-2s}
+      CHATBOT_WARMUP_READ_TIMEOUT: ${CHATBOT_WARMUP_READ_TIMEOUT:-10s}
     depends_on:
       db-init:
         condition: service_completed_successfully
