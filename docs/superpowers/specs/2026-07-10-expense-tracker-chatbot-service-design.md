@@ -92,10 +92,10 @@ After authenticated session restoration or login:
 
 1. Vue calls authenticated `POST /api/bot/warmup` on `expense-tracker-api`.
 2. The API applies a per-user five-minute cooldown.
-3. The API starts a bounded call to the chatbot's restricted liveness endpoint.
+3. The API starts a bounded call to the chatbot's key-protected `GET /internal/warmup` endpoint.
 4. Vue tracks `idle`, `warming`, `ready`, or `delayed` in memory only.
 
-The API, rather than the browser, calls the chatbot health endpoint so an unauthenticated public warm-up API is not exposed for trivial cost abuse. Repeated accepted calls within the cooldown do not produce another downstream wake request.
+The API, rather than the browser, calls the chatbot warm-up endpoint. It supplies a random 256-bit `X-Chatbot-Warmup-Key` value stored in Key Vault and injected into both server-side services. The chatbot compares the supplied value in constant time and rejects missing or invalid values. Repeated accepted calls within the cooldown do not produce another downstream wake request.
 
 While warm-up is pending, the widget displays:
 
@@ -103,7 +103,7 @@ While warm-up is pending, the widget displays:
 
 If the widget opens before warm-up completes, it remains open and continues waiting. A timeout changes the state to `delayed` and allows recovery or retry; it does not permanently disable chat. Page refresh and logout clear the client-side state.
 
-The health response exposes only health status and no environment, configuration, or dependency details.
+The warm-up response exposes only readiness status and no environment, configuration, or dependency details. Actuator endpoints are not exposed through public ingress; Container Apps uses a TCP health probe on port 8080.
 
 ## Error Handling And Observability
 
@@ -115,7 +115,7 @@ The health response exposes only health status and no environment, configuration
 
 Logs include a correlation ID, activity type, channel ID, hashed conversation identifier, duration, and outcome. They exclude prompt text, response text, Activities, identity tokens, Direct Line tokens, and credentials.
 
-Actuator liveness is enabled with minimal details. Other actuator endpoints are not publicly exposed.
+Actuator endpoints are not publicly exposed.
 
 ## Configuration
 
@@ -131,7 +131,7 @@ bot.connector.connect-timeout=5s
 bot.connector.read-timeout=15s
 ```
 
-The API receives the chatbot liveness URL and warm-up timeout through server-side configuration. No identity secret or Connector token is stored in source, Vue environment variables, or browser storage.
+The API receives the chatbot warm-up URL, warm-up key, and timeout through server-side configuration. The shared warm-up key is stored in Key Vault and never appears in source, Vue environment variables, browser storage, or logs. No bot identity secret or Connector token is stored by the application.
 
 ## Azure Deployment
 
@@ -142,7 +142,8 @@ Deploy `expense-tracker-chatbot` as a separate Azure Container App with:
 - Minimum replicas `0`.
 - Maximum replicas `1` for the first release.
 - The Azure Bot resource's user-assigned managed identity attached.
-- Only non-secret bot App ID, identity client ID, host allowlist, and timeout settings as environment variables.
+- Non-secret bot App ID, identity client ID, host allowlist, and timeout settings as environment variables.
+- `CHATBOT_WARMUP_KEY` as a Key Vault secret reference in both the chatbot and API Container Apps.
 
 After deployment, configure the Azure Bot messaging endpoint as:
 
@@ -163,7 +164,7 @@ Direct Line sites remain unchanged during this cycle. The custom `expense-tracke
 - Verify unsupported valid Activities are acknowledged without outbound calls.
 - Use a local mock HTTP server for Connector replies, timeouts, and safe error mapping.
 - Verify access tokens and Activity text never appear in captured logs.
-- Verify liveness exposes no details.
+- Verify `/internal/warmup` rejects missing/incorrect keys, accepts the configured key, and exposes no details.
 
 ### API
 
@@ -183,7 +184,7 @@ Direct Line sites remain unchanged during this cycle. The custom `expense-tracke
 
 ### Azure smoke test
 
-- The Container App scales from zero after authenticated login warm-up.
+- The Container App scales from zero after the API performs an authenticated, key-protected warm-up.
 - An unsigned request to `/api/messages` is rejected.
 - A Vue Direct Line message reaches the chatbot.
 - The attached managed identity obtains a Connector token.
