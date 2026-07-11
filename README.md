@@ -296,7 +296,17 @@ CHATBOT_WARMUP_URL=http://host.docker.internal:8082/internal/warmup
 CHATBOT_WARMUP_KEY=<same-local-value-used-by-expense-tracker-chatbot>
 ```
 
-Azure configuration is currently deferred. Before deploying, store both the Direct Line secret and chatbot warm-up key in Key Vault and configure the API Container App through secret references.
+The Azure integration is deployed and operational. Store both the Direct Line secret and chatbot warm-up key in Key Vault and configure the API Container App through secret references. The deployed chatbot warm-up endpoint is:
+
+```text
+https://ca-expensetracker-sea-chat.redwater-71627aca.southeastasia.azurecontainerapps.io/internal/warmup
+```
+
+The Direct Line site used by the web application is `expense-tracker-web`. `AZURE_BOT_DIRECT_LINE_TRUSTED_ORIGINS` must contain the exact HTTPS browser origin with no path or trailing slash.
+
+The Azure Portal has been observed displaying or copying an incomplete Direct Line secret. A valid regenerated secret may contain two long segments separated by a period. If Direct Line returns `403 BadArgument: Invalid token or secret`, rotate one site key through the Azure management API, store the complete returned value in Key Vault, and create or restart the API Container App revision.
+
+The token broker returns a conversation ID for server-side identity mapping, but a new Web Chat client should call `createDirectLine` with the token only. Passing that conversation ID makes Direct Line JS attempt to reconnect to a conversation that has not yet been started.
 
 For Microsoft Entra External ID, set `AUTH_ISSUER_URI` and `JWK_SET_URI` from the tenant's OpenID Connect metadata. The frontend must request the API scope so calls include a bearer access token intended for this API.
 
