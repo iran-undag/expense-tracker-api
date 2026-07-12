@@ -308,6 +308,20 @@ The Azure Portal has been observed displaying or copying an incomplete Direct Li
 
 The token broker returns a conversation ID for server-side identity mapping, but a new Web Chat client should call `createDirectLine` with the token only. Passing that conversation ID makes Direct Line JS attempt to reconnect to a conversation that has not yet been started.
 
+### Internal chatbot tools
+
+The chatbot service calls `POST /internal/chat-tools/execute` with its own service bearer token. Browser and ordinary user tokens cannot use this endpoint. The API resolves the supplied Direct Line user/conversation pair through the unexpired server-side mapping before deriving the expense owner.
+
+Supported query tools are monthly summary, category breakdown, spending trend, budget status, and a bounded expense lookup. Each expense-aware request generates due recurring expenses once for the mapped owner before reading data, matching the existing dashboard behavior. The model cannot supply an application user ID, URL, API path, or SQL.
+
+Production service authentication uses `CHATBOT_SERVICE_ISSUER`, `CHATBOT_SERVICE_AUDIENCE`, `CHATBOT_SERVICE_JWK_SET_URI`, and the `CHATBOT_TOOL_EXECUTOR` app role. For local-only RSA testing, generate ignored keys with:
+
+```bash
+./scripts/generate-local-chatbot-keys.sh
+```
+
+Then set `CHATBOT_SERVICE_PUBLIC_KEY_LOCATION=file:.local/chatbot-keys/public.pem` with the local issuer and audience. Never enable the local public-key configuration in production.
+
 For Microsoft Entra External ID, set `AUTH_ISSUER_URI` and `JWK_SET_URI` from the tenant's OpenID Connect metadata. The frontend must request the API scope so calls include a bearer access token intended for this API.
 
 `ALLOWED_ORIGIN_PATTERNS` must be the browser origin shown in devtools, not a container URL. For local frontend runs, use `http://localhost:5173`; do not use `http://host.docker.internal:5173` for CORS.
