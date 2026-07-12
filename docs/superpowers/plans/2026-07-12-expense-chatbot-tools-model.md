@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Add secure, stateless Azure OpenAI orchestration and five user-isolated read-only expense tools to the deployed Gastos chatbot.
+**Goal:** Add secure, stateless Azure OpenAI orchestration and five user-isolated expense query tools to the deployed Gastos chatbot.
 
 **Architecture:** The API exposes one service-authenticated internal tool endpoint that resolves the existing Direct Line identity mapping before dispatching typed, bounded calls to existing domain services. The chatbot owns a provider-neutral `ChatModelGateway`, uses a deterministic fake locally and in tests, and implements Azure OpenAI through an isolated managed-identity REST adapter so a future Foundry adapter does not affect tool, identity, or Connector code.
 
@@ -12,7 +12,7 @@
 
 - Each Direct Line message is stateless; do not add chat memory or persistence.
 - The chatbot and API remain separate repositories and deployment units.
-- V1 is read-only and must not invoke create, update, delete, or `RecurringExpenseService.generateDueExpenses`.
+- V1 exposes no user-requested create, update, or delete tools. Each expense-aware tool invokes `RecurringExpenseService.generateDueExpenses` once after identity resolution so chatbot results match existing dashboard behavior.
 - The expense owner is derived only from an unexpired `(directLineUserId, conversationId)` mapping.
 - Browser tokens, user IDs, model arguments, and message text cannot select or override the owner.
 - `/internal/chat-tools/**` requires the chatbot service role and must reject ordinary user JWTs.
@@ -227,7 +227,7 @@ git commit -m "feat: define bounded chatbot tool contract"
 
 ---
 
-### Task 3: Resolve Identity And Execute Read-Only Domain Tools
+### Task 3: Resolve Identity And Execute Expense-Aware Domain Tools
 
 **Files:**
 - Create: `src/main/java/com/example/expensetracker/chattool/ChatToolService.java`
@@ -258,7 +258,7 @@ Also test expired mapping rejection and verify the relevant domain service is no
 
 Assert exact response fields for monthly summary, category breakdown, spending trend, budget status, and expense lookup. For expense lookup, assert the serialized result contains `id`, `description`, `amount`, `date`, and `category`, and does not contain `userid`.
 
-Assert that invoking any tool does not increase the expense row count through recurring generation.
+Create a due recurring rule for the mapped user and assert the first tool request generates its occurrence before calculating the result. Repeat the same request and assert no duplicate occurrence or expense is created. Create a due rule for a second user and assert it remains untouched. For an expired or mixed `(directLineUserId, conversationId)` pair, verify `RecurringExpenseService.generateDueExpenses` is never invoked.
 
 - [ ] **Step 3: Run the integration test and verify RED**
 
@@ -277,6 +277,8 @@ String userId = mappingService.resolveUserId(
         validated.directLineUserId(), validated.conversationId(), now)
     .orElseThrow(ChatIdentityNotFoundException::new);
 
+recurringExpenseService.generateDueExpenses(userId, LocalDate.now(clock));
+
 Object result = switch (validated.arguments()) {
     case MonthlySummaryArguments args ->
         reportService.getMonthlySummary(userId, args.year(), args.month());
@@ -291,7 +293,7 @@ Object result = switch (validated.arguments()) {
 };
 ```
 
-If Java 17 preview pattern-switch support would be required, use an ordinary enum switch and explicit casts instead. Do not enable preview features.
+Call recurring generation exactly once before the dispatch switch, not once per tool branch. If Java 17 preview pattern-switch support would be required, use an ordinary enum switch and explicit casts instead. Do not enable preview features.
 
 Build `PageRequest.of(page, size, Sort.by(DESC, "date"))` internally. Map expenses to `ChatExpenseResult`; never reuse `ExpenseResponseDto` because it exposes `userid`.
 
