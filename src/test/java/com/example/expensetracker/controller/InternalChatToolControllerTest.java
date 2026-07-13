@@ -8,6 +8,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.example.expensetracker.chattool.ChatBoundedList;
+import com.example.expensetracker.chattool.ChatCategoryResult;
 import com.example.expensetracker.chattool.ChatIdentityNotFoundException;
 import com.example.expensetracker.chattool.ChatToolName;
 import com.example.expensetracker.chattool.ChatToolResponse;
@@ -18,6 +20,7 @@ import com.example.expensetracker.exception.ChatToolExceptionHandler;
 import com.example.expensetracker.security.ChatbotServiceSecurityConfig;
 import java.math.BigDecimal;
 import java.time.Clock;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -60,6 +63,27 @@ class InternalChatToolControllerTest {
             .andExpect(header().string(HttpHeaders.CACHE_CONTROL, "no-store"))
             .andExpect(jsonPath("$.tool").value("MONTHLY_SUMMARY"))
             .andExpect(jsonPath("$.result.year").value(2026));
+    }
+
+    @Test
+    void serializesNewToolResultForAuthorizedService() throws Exception {
+        when(service.execute(any(), any())).thenReturn(new ChatToolResponse(
+            ChatToolName.CATEGORY_LIST,
+            new ChatBoundedList<>(
+                List.of(new ChatCategoryResult("Food", true, true)), 1, false)));
+
+        mockMvc.perform(post("/internal/chat-tools/execute")
+                .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_CHATBOT_TOOL_EXECUTOR")))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {"directLineUserId":"dl_user","conversationId":"conversation",
+                     "tool":"CATEGORY_LIST","arguments":{"includeInactive":false}}
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.tool").value("CATEGORY_LIST"))
+            .andExpect(jsonPath("$.result.content[0].name").value("Food"))
+            .andExpect(jsonPath("$.result.content[0].userId").doesNotExist())
+            .andExpect(jsonPath("$.result.totalCount").value(1));
     }
 
     @Test

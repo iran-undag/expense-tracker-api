@@ -2,13 +2,17 @@ package com.example.expensetracker.service;
 
 import com.example.expensetracker.dto.CategoryBreakdownDto;
 import com.example.expensetracker.dto.MonthlySummaryDto;
+import com.example.expensetracker.dto.SpendingPeriodDto;
 import com.example.expensetracker.dto.SpendingTrendDto;
 import com.example.expensetracker.model.Expense;
 import com.example.expensetracker.repository.ExpenseRepository;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.time.YearMonth;
+import java.time.DayOfWeek;
 import java.time.LocalDate;
+import java.time.YearMonth;
+import java.time.temporal.TemporalAdjusters;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -103,6 +107,44 @@ public class ReportServiceImpl implements ReportService {
             .toList();
     }
 
+    @Override
+    public List<SpendingPeriodDto> getSpendingByPeriod(
+        String userId,
+        LocalDate fromDate,
+        LocalDate toDate,
+        SpendingGranularity granularity,
+        String category
+    ) {
+        if (fromDate == null || toDate == null || granularity == null) {
+            throw new IllegalArgumentException("Dates and granularity are required");
+        }
+        if (fromDate.isAfter(toDate)) {
+            throw new IllegalArgumentException("fromDate must be on or before toDate");
+        }
+
+        List<Expense> expenses = expensesForRange(userId, fromDate, toDate).stream()
+            .filter(expense -> !hasText(category)
+                || normalizeCategory(expense.getCategory()).equalsIgnoreCase(category.trim()))
+            .toList();
+        List<SpendingPeriodDto> periods = new ArrayList<>();
+        LocalDate periodStart = fromDate;
+        while (!periodStart.isAfter(toDate)) {
+            LocalDate periodEnd = granularity == SpendingGranularity.DAY
+                ? periodStart
+                : min(periodStart.with(TemporalAdjusters.nextOrSame(DayOfWeek.SUNDAY)), toDate);
+            LocalDate start = periodStart;
+            LocalDate end = periodEnd;
+            List<Expense> matches = expenses.stream()
+                .filter(expense -> expense.getDate() != null
+                    && !expense.getDate().isBefore(start)
+                    && !expense.getDate().isAfter(end))
+                .toList();
+            periods.add(new SpendingPeriodDto(start, end, total(matches), matches.size()));
+            periodStart = periodEnd.plusDays(1);
+        }
+        return periods;
+    }
+
     private List<Expense> expensesForRange(String userId, LocalDate fromDate, LocalDate toDate) {
         return expenseRepository.findByUseridAndDateBetween(userId, fromDate, toDate);
     }
@@ -119,6 +161,10 @@ public class ReportServiceImpl implements ReportService {
             .map(Expense::getAmount)
             .map(this::nullToZero)
             .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    private LocalDate min(LocalDate left, LocalDate right) {
+        return left.isBefore(right) ? left : right;
     }
 
     private BigDecimal percent(BigDecimal amount, BigDecimal total) {

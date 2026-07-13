@@ -10,6 +10,8 @@ public record ExpenseLookupArguments(
     String query,
     BigDecimal minAmount,
     BigDecimal maxAmount,
+    ExpenseSortBy sortBy,
+    ExpenseSortDirection sortDirection,
     int page,
     int size
 ) implements ChatToolArguments {

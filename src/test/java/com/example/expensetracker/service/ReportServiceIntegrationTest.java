@@ -1,9 +1,11 @@
 package com.example.expensetracker.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.tuple;
 
 import com.example.expensetracker.dto.CategoryBreakdownDto;
 import com.example.expensetracker.dto.MonthlySummaryDto;
+import com.example.expensetracker.dto.SpendingPeriodDto;
 import com.example.expensetracker.dto.SpendingTrendDto;
 import com.example.expensetracker.model.Expense;
 import com.example.expensetracker.repository.ExpenseRepository;
@@ -81,6 +83,42 @@ class ReportServiceIntegrationTest {
         assertThat(trend.get(0).getTotalAmount()).isEqualByComparingTo("0.00");
         assertThat(trend.get(1).getTotalAmount()).isEqualByComparingTo("0.00");
         assertThat(trend.get(2).getTotalAmount()).isEqualByComparingTo("150.00");
+    }
+
+    @Test
+    void spendingByPeriod_shouldFillDailyBucketsAndFilterOwnerAndCategory() {
+        List<SpendingPeriodDto> periods = reportService.getSpendingByPeriod(
+            "testuser", LocalDate.of(2026, 6, 9), LocalDate.of(2026, 6, 12),
+            SpendingGranularity.DAY, "food");
+
+        assertThat(periods).hasSize(4);
+        assertThat(periods).extracting(SpendingPeriodDto::periodStart)
+            .containsExactly(
+                LocalDate.of(2026, 6, 9), LocalDate.of(2026, 6, 10),
+                LocalDate.of(2026, 6, 11), LocalDate.of(2026, 6, 12));
+        assertThat(periods).extracting(SpendingPeriodDto::totalAmount)
+            .containsExactly(
+                BigDecimal.ZERO, new BigDecimal("50.00"),
+                BigDecimal.ZERO, BigDecimal.ZERO);
+        assertThat(periods).extracting(SpendingPeriodDto::expenseCount)
+            .containsExactly(0L, 1L, 0L, 0L);
+    }
+
+    @Test
+    void spendingByPeriod_shouldUseMondayWeeksAndClipRangeEdges() {
+        List<SpendingPeriodDto> periods = reportService.getSpendingByPeriod(
+            "testuser", LocalDate.of(2026, 6, 5), LocalDate.of(2026, 6, 16),
+            SpendingGranularity.WEEK, null);
+
+        assertThat(periods).extracting(
+            SpendingPeriodDto::periodStart, SpendingPeriodDto::periodEnd)
+            .containsExactly(
+                tuple(LocalDate.of(2026, 6, 5), LocalDate.of(2026, 6, 7)),
+                tuple(LocalDate.of(2026, 6, 8), LocalDate.of(2026, 6, 14)),
+                tuple(LocalDate.of(2026, 6, 15), LocalDate.of(2026, 6, 16)));
+        assertThat(periods).extracting(SpendingPeriodDto::totalAmount)
+            .containsExactly(
+                new BigDecimal("100.00"), new BigDecimal("100.00"), BigDecimal.ZERO);
     }
 
     private Expense expense(String userId, String description, String category, String amount, LocalDate date) {

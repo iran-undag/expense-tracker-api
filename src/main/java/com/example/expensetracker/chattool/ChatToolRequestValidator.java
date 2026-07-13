@@ -27,16 +27,107 @@ public class ChatToolRequestValidator {
         if (request.arguments() == null || !request.arguments().isObject()) {
             throw invalid("Arguments must be an object");
         }
+        validateJsonTypes(request.tool(), request.arguments());
         ChatToolArguments arguments = switch (request.tool()) {
             case MONTHLY_SUMMARY -> convert(request.arguments(), MonthlySummaryArguments.class);
             case CATEGORY_BREAKDOWN -> convert(request.arguments(), CategoryBreakdownArguments.class);
             case SPENDING_TREND -> convert(request.arguments(), SpendingTrendArguments.class);
             case BUDGET_STATUS -> convert(request.arguments(), BudgetStatusArguments.class);
             case EXPENSE_LOOKUP -> convert(request.arguments(), ExpenseLookupArguments.class);
+            case RECURRING_EXPENSE_STATUS ->
+                convert(request.arguments(), RecurringExpenseStatusArguments.class);
+            case CATEGORY_LIST -> convert(request.arguments(), CategoryListArguments.class);
+            case SPENDING_BY_PERIOD -> convert(request.arguments(), SpendingByPeriodArguments.class);
         };
         validateArguments(arguments);
         return new ValidatedChatToolRequest(
             request.directLineUserId(), request.conversationId(), request.tool(), arguments);
+    }
+
+    private void validateJsonTypes(ChatToolName tool, JsonNode node) {
+        switch (tool) {
+            case MONTHLY_SUMMARY, BUDGET_STATUS -> {
+                validateRequiredInteger(node, "year");
+                validateRequiredInteger(node, "month");
+            }
+            case CATEGORY_BREAKDOWN -> validateRequiredDates(node);
+            case SPENDING_TREND -> {
+                validateRequiredInteger(node, "year");
+                validateRequiredInteger(node, "month");
+                validateRequiredInteger(node, "months");
+                validateOptionalText(node, "category");
+            }
+            case EXPENSE_LOOKUP -> {
+                validateRequiredDates(node);
+                validateOptionalText(node, "category");
+                validateOptionalText(node, "query");
+                validateOptionalNumber(node, "minAmount");
+                validateOptionalNumber(node, "maxAmount");
+                validateEnum(node, "sortBy", false, "DATE", "AMOUNT");
+                validateEnum(node, "sortDirection", false, "ASC", "DESC");
+                validateRequiredInteger(node, "page");
+                validateRequiredInteger(node, "size");
+            }
+            case RECURRING_EXPENSE_STATUS, CATEGORY_LIST ->
+                validateOptionalBoolean(node, "includeInactive");
+            case SPENDING_BY_PERIOD -> {
+                validateRequiredDates(node);
+                validateEnum(node, "granularity", true, "DAY", "WEEK");
+                validateOptionalText(node, "category");
+            }
+        }
+    }
+
+    private void validateRequiredInteger(JsonNode node, String field) {
+        JsonNode value = node.get(field);
+        if (value == null || !value.isIntegralNumber() || !value.canConvertToInt()) {
+            throw invalid(field + " must be an integer");
+        }
+    }
+
+    private void validateRequiredDates(JsonNode node) {
+        validateRequiredDate(node, "fromDate");
+        validateRequiredDate(node, "toDate");
+    }
+
+    private void validateRequiredDate(JsonNode node, String field) {
+        validateRequiredText(node, field);
+        try {
+            LocalDate.parse(node.path(field).textValue());
+        } catch (java.time.format.DateTimeParseException exception) {
+            throw invalid(field + " must be a valid date");
+        }
+    }
+
+    private void validateRequiredText(JsonNode node, String field) {
+        if (!node.hasNonNull(field) || !node.path(field).isTextual()) {
+            throw invalid(field + " must be a string");
+        }
+    }
+
+    private void validateOptionalText(JsonNode node, String field) {
+        if (node.hasNonNull(field) && !node.path(field).isTextual()) {
+            throw invalid(field + " must be a string");
+        }
+    }
+
+    private void validateOptionalNumber(JsonNode node, String field) {
+        if (node.hasNonNull(field) && !node.path(field).isNumber()) {
+            throw invalid(field + " must be a number");
+        }
+    }
+
+    private void validateEnum(
+        JsonNode node, String field, boolean required, String... allowed
+    ) {
+        if (!node.hasNonNull(field)) {
+            if (required) throw invalid(field + " is required");
+            return;
+        }
+        if (!node.path(field).isTextual()
+            || java.util.Arrays.stream(allowed).noneMatch(node.path(field).textValue()::equals)) {
+            throw invalid(field + " is invalid");
+        }
     }
 
     private void validateIdentity(String userId, String conversationId) {
@@ -66,6 +157,10 @@ public class ChatToolRequestValidator {
             validateAmounts(value.minAmount(), value.maxAmount());
             if (value.page() < 0 || value.page() > 100) throw invalid("Page must be between 0 and 100");
             if (value.size() < 1 || value.size() > 20) throw invalid("Size must be between 1 and 20");
+        } else if (arguments instanceof SpendingByPeriodArguments value) {
+            validateDateRange(value.fromDate(), value.toDate());
+            if (value.granularity() == null) throw invalid("Granularity is required");
+            validateText(value.category(), "Category");
         }
     }
 
@@ -91,6 +186,12 @@ public class ChatToolRequestValidator {
         }
         if (min != null && max != null && min.compareTo(max) > 0) {
             throw invalid("Minimum amount must not exceed maximum amount");
+        }
+    }
+
+    private void validateOptionalBoolean(JsonNode node, String field) {
+        if (node.has(field) && !node.path(field).isBoolean()) {
+            throw invalid(field + " must be a boolean");
         }
     }
 
