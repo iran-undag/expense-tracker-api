@@ -296,11 +296,13 @@ CHATBOT_WARMUP_URL=http://host.docker.internal:8082/internal/warmup
 CHATBOT_WARMUP_KEY=<same-local-value-used-by-expense-tracker-chatbot>
 ```
 
-The Azure integration is deployed and operational. Store both the Direct Line secret and chatbot warm-up key in Key Vault and configure the API Container App through secret references. The deployed chatbot warm-up endpoint is:
+Store both the Direct Line secret and chatbot warm-up key in Key Vault and configure the API Container App through secret references. Configure the warm-up endpoint with the environment-specific chatbot URL:
 
 ```text
-https://ca-expensetracker-sea-chat.redwater-71627aca.southeastasia.azurecontainerapps.io/internal/warmup
+https://<chatbot-container-app-fqdn>/internal/warmup
 ```
+
+The exact deployed resource names and URLs belong in the chatbot repository's `docs/AGENT_HANDOFF.md`, not in this portable setup guide.
 
 The Direct Line site used by the web application is `expense-tracker-web`. `AZURE_BOT_DIRECT_LINE_TRUSTED_ORIGINS` must contain the exact HTTPS browser origin with no path or trailing slash.
 
@@ -321,6 +323,10 @@ Production service authentication uses `CHATBOT_SERVICE_ISSUER`, `CHATBOT_SERVIC
 ```
 
 Then set `CHATBOT_SERVICE_PUBLIC_KEY_LOCATION=file:.local/chatbot-keys/public.pem` with the local issuer and audience. Never enable the local public-key configuration in production.
+
+To exercise the local service boundary, copy the generated private key to the chatbot repository's ignored `.local/chatbot-keys/private.pem`, run this API with the `dev` profile and matching issuer/audience values, and run the chatbot with the `local-chatbot` profile. The local chatbot model is deterministic and does not select expense tools from natural language; the automated suites are the authoritative local verification of tool selection, ownership, validation, and orchestration.
+
+For Azure, deploy the API revision before the chatbot revision. The API must validate the chatbot managed identity's Entra token and require the `CHATBOT_TOOL_EXECUTOR` app role. A browser token or ordinary user token must not authorize `/internal/chat-tools/**`.
 
 For Microsoft Entra External ID, set `AUTH_ISSUER_URI` and `JWK_SET_URI` from the tenant's OpenID Connect metadata. The frontend must request the API scope so calls include a bearer access token intended for this API.
 
