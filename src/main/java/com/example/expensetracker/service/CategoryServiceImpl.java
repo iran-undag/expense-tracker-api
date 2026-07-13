@@ -24,6 +24,10 @@ public class CategoryServiceImpl implements CategoryService {
         "Shopping",
         "Travel",
         "Entertainment",
+        "Mortgage",
+        "Rent",
+        "Insurance",
+        "Tuition",
         "Other"
     );
 
@@ -39,6 +43,10 @@ public class CategoryServiceImpl implements CategoryService {
         "#e6007e",
         "#8b6fcb",
         "#2aa7a5",
+        "#92400e",
+        "#475569",
+        "#0369a1",
+        "#7e22ce",
         "#64748b"
     );
 
@@ -108,10 +116,6 @@ public class CategoryServiceImpl implements CategoryService {
     }
 
     private void ensureDefaultCategories(String userId) {
-        if (categoryRepository.existsByUseridAndSystemDefaultTrue(userId)) {
-            return;
-        }
-
         for (int index = 0; index < DEFAULT_CATEGORY_NAMES.size(); index += 1) {
             String name = DEFAULT_CATEGORY_NAMES.get(index);
             if (categoryRepository.findByUseridAndNameIgnoreCase(userId, name).isPresent()) {

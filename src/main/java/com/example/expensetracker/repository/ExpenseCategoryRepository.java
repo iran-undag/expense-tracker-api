@@ -12,5 +12,4 @@ public interface ExpenseCategoryRepository extends JpaRepository<ExpenseCategory
     List<ExpenseCategory> findByUseridAndActiveTrueOrderByNameAsc(String userId);
     Optional<ExpenseCategory> findByIdAndUserid(Long id, String userId);
     Optional<ExpenseCategory> findByUseridAndNameIgnoreCase(String userId, String name);
-    boolean existsByUseridAndSystemDefaultTrue(String userId);
 }

@@ -32,10 +32,55 @@ class CategoryServiceIntegrationTest {
         List<ExpenseCategory> categories = categoryService.getCategories("testuser", false);
 
         assertThat(categories).extracting(ExpenseCategory::getName)
-            .contains("Food", "Groceries", "Transport", "Electricity", "Water", "Internet", "Phone", "Other")
+            .contains(
+                "Food", "Groceries", "Transport", "Electricity", "Water", "Internet", "Phone",
+                "Mortgage", "Rent", "Insurance", "Tuition", "Other")
             .doesNotContain("Utilities");
         assertThat(categories).allMatch(category -> "testuser".equals(category.getUserid()));
         assertThat(categoryRepository.findByUseridOrderByNameAsc("otheruser")).isEmpty();
+    }
+
+    @Test
+    void getCategories_shouldReconcileMissingDefaultsForExistingUser() {
+        categoryRepository.save(ExpenseCategory.builder()
+            .userid("testuser")
+            .name("Food")
+            .color("#4f6bed")
+            .icon("food")
+            .systemDefault(true)
+            .active(true)
+            .build());
+
+        List<ExpenseCategory> categories = categoryService.getCategories("testuser", true);
+
+        assertThat(categories).extracting(ExpenseCategory::getName)
+            .contains("Food", "Mortgage", "Rent", "Insurance", "Tuition");
+        assertThat(categories).filteredOn(category -> "Food".equals(category.getName())).hasSize(1);
+    }
+
+    @Test
+    void getCategories_shouldPreserveMatchingUserCategoryWithoutDuplicateOrReactivation() {
+        ExpenseCategory rent = categoryRepository.save(ExpenseCategory.builder()
+            .userid("testuser")
+            .name("rent")
+            .color("#123456")
+            .icon("custom-home")
+            .systemDefault(false)
+            .active(false)
+            .build());
+
+        categoryService.getCategories("testuser", true);
+
+        List<ExpenseCategory> matches = categoryRepository.findByUseridOrderByNameAsc("testuser").stream()
+            .filter(category -> "rent".equalsIgnoreCase(category.getName()))
+            .toList();
+        assertThat(matches).singleElement().satisfies(saved -> {
+            assertThat(saved.getId()).isEqualTo(rent.getId());
+            assertThat(saved.getColor()).isEqualTo("#123456");
+            assertThat(saved.getIcon()).isEqualTo("custom-home");
+            assertThat(saved.isSystemDefault()).isFalse();
+            assertThat(saved.isActive()).isFalse();
+        });
     }
 
     @Test

@@ -200,6 +200,12 @@ Recurring expenses are stored as rules in `recurring_expense`. The API uses gene
 
 This approach is friendly to free-tier or sleep-prone hosting because generation happens when the user opens or refreshes the app.
 
+## Default Categories
+
+The API lazily reconciles the default category set when a user lists categories. The defaults are Food, Groceries, Transport, Electricity, Water, Internet, Phone, Healthcare, Shopping, Travel, Entertainment, Mortgage, Rent, Insurance, Tuition, and Other.
+
+Reconciliation is name-based and does not replace or reactivate an existing custom category with the same name. This lets existing users receive newly introduced defaults without duplicating categories or overwriting their choices.
+
 ## Import/Export
 
 `/api/import-export/export` returns expense records as `text/csv` for a required date range.
@@ -314,7 +320,7 @@ The token broker returns a conversation ID for server-side identity mapping, but
 
 The chatbot service calls `POST /internal/chat-tools/execute` with its own service bearer token. Browser and ordinary user tokens cannot use this endpoint. The API resolves the supplied Direct Line user/conversation pair through the unexpired server-side mapping before deriving the expense owner.
 
-Supported query tools are monthly summary, category breakdown, spending trend, budget status, and a bounded expense lookup. Each expense-aware request generates due recurring expenses once for the mapped owner before reading data, matching the existing dashboard behavior. The model cannot supply an application user ID, URL, API path, or SQL.
+Supported query tools are monthly summary, category breakdown, spending trend, budget status, and a bounded expense lookup. Each expense-aware request generates due recurring expenses once for the mapped owner before reading data, matching the existing dashboard behavior. The model cannot supply an application user ID, URL, API path, or SQL. General personal-finance answers and unrelated-topic refusal are enforced by the chatbot service; this API remains the authorization and user-isolation boundary for expense data.
 
 Production service authentication uses `CHATBOT_SERVICE_ISSUER`, `CHATBOT_SERVICE_AUDIENCE`, `CHATBOT_SERVICE_JWK_SET_URI`, and the `CHATBOT_TOOL_EXECUTOR` app role. For local-only RSA testing, generate ignored keys with:
 
@@ -324,7 +330,7 @@ Production service authentication uses `CHATBOT_SERVICE_ISSUER`, `CHATBOT_SERVIC
 
 Then set `CHATBOT_SERVICE_PUBLIC_KEY_LOCATION=file:.local/chatbot-keys/public.pem` with the local issuer and audience. Never enable the local public-key configuration in production.
 
-To exercise the local service boundary, copy the generated private key to the chatbot repository's ignored `.local/chatbot-keys/private.pem`, run this API with the `dev` profile and matching issuer/audience values, and run the chatbot with the `local-chatbot` profile. The local chatbot model is deterministic and does not select expense tools from natural language; the automated suites are the authoritative local verification of tool selection, ownership, validation, and orchestration.
+The chatbot repository no longer provides a `local-chatbot` runtime profile. This API's local public-key configuration remains available for API-side authentication tests, while the chatbot suite uses test-only gateways and controlled token providers. The automated suites are the authoritative local verification of tool selection, ownership, validation, and orchestration; full end-to-end chat validation runs through isolated Azure revisions.
 
 For Azure, deploy the API revision before the chatbot revision. The API must validate the chatbot managed identity's Entra token and require the `CHATBOT_TOOL_EXECUTOR` app role. A browser token or ordinary user token must not authorize `/internal/chat-tools/**`.
 
