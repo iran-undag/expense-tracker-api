@@ -1,6 +1,7 @@
 package com.example.expensetracker.service;
 
 import com.example.expensetracker.dto.DirectLineTokenResponseDto;
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -42,7 +43,7 @@ public class DirectLineTokenService {
     @Value("${azure.bot.direct-line.trusted-origins}")
     private String trustedOrigins;
 
-    public DirectLineTokenResponseDto issueToken(String expenseUserId) {
+    public DirectLineTokenResponseDto issueToken(String expenseUserId, String firstName) {
         List<String> origins = parseTrustedOrigins();
         if (!StringUtils.hasText(directLineSecret)
             || !StringUtils.hasText(tokenUrl)
@@ -55,7 +56,7 @@ public class DirectLineTokenService {
 
         String directLineUserId = "dl_" + UUID.randomUUID().toString().replace("-", "");
         DirectLineGenerateTokenRequest request = new DirectLineGenerateTokenRequest(
-            new DirectLineUser(directLineUserId),
+            new DirectLineUser(directLineUserId, firstName),
             origins
         );
 
@@ -168,7 +169,12 @@ public class DirectLineTokenService {
     ) {
     }
 
-    private record DirectLineUser(String id) {
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private record DirectLineUser(String id, String name) {
+        @Override
+        public String toString() {
+            return "DirectLineUser[id=" + id + ", namePresent=" + StringUtils.hasText(name) + "]";
+        }
     }
 
     private record DirectLineGenerateTokenResponse(

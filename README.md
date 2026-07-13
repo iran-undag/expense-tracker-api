@@ -290,6 +290,8 @@ The API owns all browser-facing chatbot credentials and warm-up calls:
 
 - `POST /api/bot/direct-line/token` requires the normal bearer token and exchanges the server-side Direct Line secret for a conversation-scoped token.
 - Direct Line user IDs are opaque `dl_` identifiers backed by a short-lived user mapping; raw application user IDs are not sent to Direct Line.
+- If the authenticated JWT contains `given_name`, the API sanitizes it, limits it to 50 Unicode code points, and includes it only as the optional Direct Line `user.name` used by the welcome message. The API does not infer a name from other claims.
+- The optional first name is not returned as a new browser response field, persisted in the identity mapping, used for authorization, or written to logs; diagnostic serialization records only whether a name is present.
 - `POST /api/bot/warmup` requires the normal bearer token and calls the chatbot's protected `/internal/warmup` endpoint.
 - Warm-up calls are limited to one downstream request per user during the configured five-minute cooldown.
 - Warm-up failures return `delayed` and do not fail login or other API behavior.
@@ -321,6 +323,8 @@ The token broker returns a conversation ID for server-side identity mapping, but
 The chatbot service calls `POST /internal/chat-tools/execute` with its own service bearer token. Browser and ordinary user tokens cannot use this endpoint. The API resolves the supplied Direct Line user/conversation pair through the unexpired server-side mapping before deriving the expense owner.
 
 Supported query tools are monthly summary, category breakdown, spending trend, budget status, and a bounded expense lookup. Each expense-aware request generates due recurring expenses once for the mapped owner before reading data, matching the existing dashboard behavior. The model cannot supply an application user ID, URL, API path, or SQL. General personal-finance answers and unrelated-topic refusal are enforced by the chatbot service; this API remains the authorization and user-isolation boundary for expense data.
+
+The chatbot service rejects messages over 1,000 Unicode code points, missing conversation identity, and requests beyond its six-message rolling per-conversation limit before calling Azure OpenAI or this API. These controls add no expense API endpoint or configuration. The expense API continues to enforce its own internal tool request-size, request-rate, app-role, mapping, and ownership checks independently.
 
 Production service authentication uses `CHATBOT_SERVICE_ISSUER`, `CHATBOT_SERVICE_AUDIENCE`, `CHATBOT_SERVICE_JWK_SET_URI`, and the `CHATBOT_TOOL_EXECUTOR` app role. For local-only RSA testing, generate ignored keys with:
 

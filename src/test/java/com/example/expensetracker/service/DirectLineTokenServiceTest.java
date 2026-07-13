@@ -14,10 +14,15 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
 import java.time.Instant;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -25,7 +30,9 @@ import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.server.ResponseStatusException;
+import org.slf4j.LoggerFactory;
 
+@ExtendWith(OutputCaptureExtension.class)
 class DirectLineTokenServiceTest {
 
     private DirectLineTokenService service;
@@ -57,6 +64,7 @@ class DirectLineTokenServiceTest {
             .andExpect(method(HttpMethod.POST))
             .andExpect(header("Authorization", "Bearer direct-line-secret"))
             .andExpect(jsonPath("$.user.id", startsWith("dl_")))
+            .andExpect(jsonPath("$.user.name").value("Juan"))
             .andExpect(jsonPath("$.trustedOrigins[0]").value("http://localhost:5173"))
             .andExpect(jsonPath("$.trustedOrigins[1]").value("https://expense.example.test"))
             .andRespond(withSuccess("""
@@ -68,7 +76,7 @@ class DirectLineTokenServiceTest {
                 """, MediaType.APPLICATION_JSON));
 
         Instant before = Instant.now();
-        var response = service.issueToken("expense-owner-id");
+        var response = service.issueToken("expense-owner-id", "Juan");
         Instant after = Instant.now();
 
         assertThat(response.getToken()).isEqualTo("short-lived-token");
@@ -89,10 +97,53 @@ class DirectLineTokenServiceTest {
     }
 
     @Test
+    void issueToken_omitsUserNameWhenFirstNameIsUnavailable() {
+        server.expect(once(), requestTo("https://directline.example.test/v3/directline/tokens/generate"))
+            .andExpect(method(HttpMethod.POST))
+            .andExpect(jsonPath("$.user.id", startsWith("dl_")))
+            .andExpect(jsonPath("$.user.name").doesNotExist())
+            .andRespond(withSuccess("""
+                {
+                  "conversationId": "conversation-123",
+                  "token": "short-lived-token",
+                  "expires_in": 1800
+                }
+                """, MediaType.APPLICATION_JSON));
+
+        service.issueToken("expense-owner-id", null);
+
+        server.verify();
+    }
+
+    @Test
+    void issueToken_doesNotLogFirstName(CapturedOutput output) {
+        server.expect(once(), requestTo("https://directline.example.test/v3/directline/tokens/generate"))
+            .andRespond(withSuccess("""
+                {
+                  "conversationId": "conversation-123",
+                  "token": "short-lived-token",
+                  "expires_in": 1800
+                }
+                """, MediaType.APPLICATION_JSON));
+
+        Logger restTemplateLogger = (Logger) LoggerFactory.getLogger(RestTemplate.class);
+        Level previousLevel = restTemplateLogger.getLevel();
+        try {
+            restTemplateLogger.setLevel(Level.DEBUG);
+            service.issueToken("expense-owner-id", "SensitiveFirstName");
+        } finally {
+            restTemplateLogger.setLevel(previousLevel);
+        }
+
+        assertThat(output).doesNotContain("SensitiveFirstName");
+        server.verify();
+    }
+
+    @Test
     void issueToken_failsClosedWhenDirectLineIsNotConfigured() {
         ReflectionTestUtils.setField(service, "directLineSecret", "");
 
-        assertThatThrownBy(() -> service.issueToken("expense-owner-id"))
+        assertThatThrownBy(() -> service.issueToken("expense-owner-id", null))
             .isInstanceOf(ResponseStatusException.class)
             .hasMessageContaining("Azure Bot Direct Line is not configured");
     }
@@ -109,7 +160,7 @@ class DirectLineTokenServiceTest {
                     }
                     """));
 
-        assertThatThrownBy(() -> service.issueToken("expense-owner-id"))
+        assertThatThrownBy(() -> service.issueToken("expense-owner-id", null))
             .isInstanceOf(ResponseStatusException.class)
             .hasMessageContaining("Direct Line error code: RegionNotAllowed");
         server.verify();

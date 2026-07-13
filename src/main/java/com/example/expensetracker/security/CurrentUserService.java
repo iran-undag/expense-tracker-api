@@ -8,6 +8,8 @@ import org.springframework.util.StringUtils;
 @Service
 public class CurrentUserService {
 
+    private static final int MAX_FIRST_NAME_CODE_POINTS = 50;
+
     public String getUserId(Authentication authentication) {
         if (authentication == null || !authentication.isAuthenticated()) {
             throw new IllegalArgumentException("Authenticated user is required.");
@@ -29,5 +31,41 @@ public class CurrentUserService {
         }
 
         return authentication.getName();
+    }
+
+    public String getFirstName(Authentication authentication) {
+        if (authentication == null || !authentication.isAuthenticated()) {
+            throw new IllegalArgumentException("Authenticated user is required.");
+        }
+        if (!(authentication.getPrincipal() instanceof Jwt jwt)) {
+            return null;
+        }
+        return sanitizeFirstName(jwt.getClaimAsString("given_name"));
+    }
+
+    private String sanitizeFirstName(String value) {
+        if (!StringUtils.hasText(value)) {
+            return null;
+        }
+
+        StringBuilder sanitized = new StringBuilder();
+        value.codePoints().forEach(codePoint -> {
+            if (Character.isWhitespace(codePoint) || Character.isSpaceChar(codePoint)) {
+                sanitized.append(' ');
+            } else if (Character.getType(codePoint) != Character.CONTROL) {
+                sanitized.appendCodePoint(codePoint);
+            }
+        });
+
+        String normalized = sanitized.toString().trim().replaceAll(" +", " ");
+        if (normalized.isBlank()) {
+            return null;
+        }
+        int codePoints = normalized.codePointCount(0, normalized.length());
+        if (codePoints <= MAX_FIRST_NAME_CODE_POINTS) {
+            return normalized;
+        }
+        int end = normalized.offsetByCodePoints(0, MAX_FIRST_NAME_CODE_POINTS);
+        return normalized.substring(0, end).trim();
     }
 }

@@ -24,8 +24,9 @@ public class BotTokenController {
     @PostMapping("/token")
     public ResponseEntity<DirectLineTokenResponseDto> issueToken(Authentication authentication) {
         String userId = currentUserService.getUserId(authentication);
+        String firstName = currentUserService.getFirstName(authentication);
         return ResponseEntity.ok()
             .cacheControl(CacheControl.noStore())
-            .body(directLineTokenService.issueToken(userId));
+            .body(directLineTokenService.issueToken(userId, firstName));
     }
 }

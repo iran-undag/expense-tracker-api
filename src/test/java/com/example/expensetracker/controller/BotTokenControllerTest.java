@@ -1,6 +1,7 @@
 package com.example.expensetracker.controller;
 
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verify;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
@@ -52,7 +53,8 @@ class BotTokenControllerTest {
     void issueToken_returnsNoStoreDirectLineTokenForAuthenticatedUser() throws Exception {
         Authentication authentication = new TestingAuthenticationToken("testuser", null);
         when(currentUserService.getUserId(authentication)).thenReturn("expense-owner-id");
-        when(directLineTokenService.issueToken("expense-owner-id"))
+        when(currentUserService.getFirstName(authentication)).thenReturn("Juan");
+        when(directLineTokenService.issueToken("expense-owner-id", "Juan"))
             .thenReturn(DirectLineTokenResponseDto.builder()
                 .token("short-lived-token")
                 .conversationId("conversation-123")
@@ -67,5 +69,6 @@ class BotTokenControllerTest {
             .andExpect(jsonPath("$.conversationId").value("conversation-123"))
             .andExpect(jsonPath("$.expiresInSeconds").value(1800))
             .andExpect(jsonPath("$.userId").value("dl_random-user-id"));
+        verify(directLineTokenService).issueToken("expense-owner-id", "Juan");
     }
 }
