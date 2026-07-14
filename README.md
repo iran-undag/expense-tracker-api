@@ -1,8 +1,8 @@
 # Expense Tracker API
 
-Expense Tracker API is the Spring Boot backend for a multi-user personal finance application. It provides authenticated, user-scoped APIs for recording and filtering expenses, managing categories and monthly budgets, generating recurring expenses, importing and exporting CSV data, and producing the summaries and trends displayed by the web dashboard.
+Expense Tracker API is the Spring Boot backend for a multi-user personal finance software-as-a-service application. It provides authenticated, user-scoped APIs for recording and filtering expenses, managing categories and monthly budgets, generating recurring expenses, importing and exporting CSV data, and producing the summaries and trends displayed by the web dashboard.
 
-The service also supports the application's assisted expense-capture features. It can send receipt images to a configurable local or Azure-based processor, issue short-lived Azure Speech and Direct Line tokens to the browser, and expose secured tools used by the expense chatbot. The API can run locally with H2 and local AI providers or use SQL Server and Azure services in production-oriented environments.
+The service also supports the application's assisted expense-capture features that implements Azure AI capabilities. It can send receipt images to a configurable local (Ollama/OpenVino) or Azure-based processor (Azure AI Document Intelligence), issue short-lived Azure Speech and Direct Line tokens to the browser, and expose secured tools used by the expense chatbot (Azure Bot + OpenAI). The API can run locally with H2 and local AI providers or use SQL Server and Azure services in production-oriented environments.
 
 ## Features
 
