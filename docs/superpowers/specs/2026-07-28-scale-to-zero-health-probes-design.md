@@ -8,10 +8,10 @@ The Azure Container App is configured separately with zero minimum replicas and 
 
 ## Application Configuration
 
-Production HikariCP will keep no minimum idle database connections and will retire unused connections after one minute:
+Production HikariCP will keep no minimum idle database connections and will retire unused connections after five minutes:
 
 - `minimum-idle`: `0`
-- `idle-timeout`: `60000` milliseconds
+- `idle-timeout`: `300000` milliseconds
 - `maximum-pool-size`: unchanged, with its existing environment-variable override
 
 The SQL Server JDBC driver will tolerate an Azure SQL serverless resume:

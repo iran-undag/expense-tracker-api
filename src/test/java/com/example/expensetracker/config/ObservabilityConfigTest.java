@@ -13,11 +13,13 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest(properties = {
         "receipt.processor.provider=azure",
-        "receipt.processor.azure-function.url=http://localhost:7071/api/process-receipt"
+        "receipt.processor.azure-function.url=http://localhost:7071/api/process-receipt",
+        "management.endpoint.health.show-components=always"
 })
 @AutoConfigureMockMvc
 @AutoConfigureObservability
@@ -31,6 +33,22 @@ class ObservabilityConfigTest {
     void actuatorHealth_shouldBeAvailable() throws Exception {
         mockMvc.perform(get("/actuator/health"))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    void actuatorLiveness_shouldExcludeDatabaseHealth() throws Exception {
+        mockMvc.perform(get("/actuator/health/liveness"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.components.livenessState.status").value("UP"))
+                .andExpect(jsonPath("$.components.db").doesNotExist());
+    }
+
+    @Test
+    void actuatorReadiness_shouldExcludeDatabaseHealth() throws Exception {
+        mockMvc.perform(get("/actuator/health/readiness"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.components.readinessState.status").value("UP"))
+                .andExpect(jsonPath("$.components.db").doesNotExist());
     }
 
     @Test
