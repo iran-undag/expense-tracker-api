@@ -130,6 +130,35 @@ oid -> userId -> sub
 
 The API will be available at `http://localhost:8081`.
 
+## Testing and coverage
+
+Run the test suite without coverage instrumentation:
+
+```bash
+./mvnw test
+```
+
+Generate the JaCoCo XML report for SonarQube:
+
+```bash
+./mvnw clean verify -Pcoverage
+```
+
+The report is written to `target/site/jacoco/jacoco.xml`. SonarScanner for
+Maven detects this standard location automatically.
+
+To generate coverage and run SonarQube analysis in one Maven invocation:
+
+```bash
+./mvnw clean verify -Pcoverage \
+  org.sonarsource.scanner.maven:sonar-maven-plugin:5.5.0.6356:sonar \
+  -Dsonar.projectKey=expense-tracker-api
+```
+
+Provide `SONAR_HOST_URL` and `SONAR_TOKEN` through the environment. Coverage
+thresholds are managed by the SonarQube quality gate; this Maven profile only
+generates the report.
+
 ## API Documentation
 
 Swagger/OpenAPI documentation is available at `http://localhost:8081/swagger-ui/index.html`.
