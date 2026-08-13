@@ -2,6 +2,7 @@ package com.example.expensetracker.model;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.persistence.Entity;
+import jakarta.persistence.Column;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -15,6 +16,7 @@ import lombok.Setter;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.UUID;
 
 @Entity
 @Getter
@@ -43,6 +45,12 @@ public class Expense {
 
     @Schema(description = "User identifier associated with the expense", example = "user-123")
     private String userid;
+
+    @Column(name = "demo_session_id")
+    private UUID demoSessionId;
+
+    @Column(name = "is_demo_seed", nullable = false)
+    private boolean demoSeed;
 
     @Transient
     private String receiptType;

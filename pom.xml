@@ -19,6 +19,7 @@
 		<lombok.version>1.18.46</lombok.version>
 		<mockito.version>5.23.0</mockito.version>
 		<byte-buddy.version>1.18.8</byte-buddy.version>
+		<testcontainers.version>1.21.4</testcontainers.version>
 		<jacocoArgLine></jacocoArgLine>
 	</properties>
 	<dependencies>
@@ -93,6 +94,16 @@
 		<dependency>
 			<groupId>org.springframework.security</groupId>
 			<artifactId>spring-security-test</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.testcontainers</groupId>
+			<artifactId>junit-jupiter</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.testcontainers</groupId>
+			<artifactId>mssqlserver</artifactId>
 			<scope>test</scope>
 		</dependency>
 

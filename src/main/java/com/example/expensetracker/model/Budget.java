@@ -8,6 +8,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import java.math.BigDecimal;
+import java.util.UUID;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -46,4 +47,10 @@ public class Budget {
 
     @Column(nullable = false, precision = 19, scale = 2)
     private BigDecimal amount;
+
+    @Column(name = "demo_session_id")
+    private UUID demoSessionId;
+
+    @Column(name = "is_demo_seed", nullable = false)
+    private boolean demoSeed;
 }

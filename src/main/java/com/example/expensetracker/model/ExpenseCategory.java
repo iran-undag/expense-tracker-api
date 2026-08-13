@@ -7,6 +7,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
+import java.util.UUID;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -47,4 +48,10 @@ public class ExpenseCategory {
 
     @Column(nullable = false)
     private boolean active;
+
+    @Column(name = "demo_session_id")
+    private UUID demoSessionId;
+
+    @Column(name = "is_demo_seed", nullable = false)
+    private boolean demoSeed;
 }
