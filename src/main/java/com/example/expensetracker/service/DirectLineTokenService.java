@@ -9,6 +9,7 @@ import java.time.Instant;
 import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
+import com.example.expensetracker.security.UserDataScope;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -44,6 +45,10 @@ public class DirectLineTokenService {
     private String trustedOrigins;
 
     public DirectLineTokenResponseDto issueToken(String expenseUserId, String firstName) {
+        return issueToken(UserDataScope.personal(expenseUserId), firstName);
+    }
+
+    public DirectLineTokenResponseDto issueToken(UserDataScope scope, String firstName) {
         List<String> origins = parseTrustedOrigins();
         if (!StringUtils.hasText(directLineSecret)
             || !StringUtils.hasText(tokenUrl)
@@ -54,7 +59,8 @@ public class DirectLineTokenService {
             );
         }
 
-        String directLineUserId = "dl_" + UUID.randomUUID().toString().replace("-", "");
+        String prefix = scope.demo() ? "dl_demo_" : "dl_";
+        String directLineUserId = prefix + UUID.randomUUID().toString().replace("-", "");
         DirectLineGenerateTokenRequest request = new DirectLineGenerateTokenRequest(
             new DirectLineUser(directLineUserId, firstName),
             origins
@@ -107,7 +113,7 @@ public class DirectLineTokenService {
         mappingService.createMapping(
             directLineUserId,
             generated.conversationId(),
-            expenseUserId,
+            scope,
             Instant.now().plusSeconds(generated.expiresIn())
         );
 

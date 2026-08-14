@@ -10,6 +10,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.example.expensetracker.dto.DirectLineTokenResponseDto;
 import com.example.expensetracker.security.CurrentUserService;
+import com.example.expensetracker.security.UserDataScope;
 import com.example.expensetracker.security.JwtTokenProvider;
 import com.example.expensetracker.service.DirectLineTokenService;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -52,9 +53,10 @@ class BotTokenControllerTest {
     @Test
     void issueToken_returnsNoStoreDirectLineTokenForAuthenticatedUser() throws Exception {
         Authentication authentication = new TestingAuthenticationToken("testuser", null);
-        when(currentUserService.getUserId(authentication)).thenReturn("expense-owner-id");
+        UserDataScope scope = UserDataScope.personal("expense-owner-id");
+        when(currentUserService.getDataScope(authentication)).thenReturn(scope);
         when(currentUserService.getFirstName(authentication)).thenReturn("Juan");
-        when(directLineTokenService.issueToken("expense-owner-id", "Juan"))
+        when(directLineTokenService.issueToken(scope, "Juan"))
             .thenReturn(DirectLineTokenResponseDto.builder()
                 .token("short-lived-token")
                 .conversationId("conversation-123")
@@ -69,6 +71,6 @@ class BotTokenControllerTest {
             .andExpect(jsonPath("$.conversationId").value("conversation-123"))
             .andExpect(jsonPath("$.expiresInSeconds").value(1800))
             .andExpect(jsonPath("$.userId").value("dl_random-user-id"));
-        verify(directLineTokenService).issueToken("expense-owner-id", "Juan");
+        verify(directLineTokenService).issueToken(scope, "Juan");
     }
 }

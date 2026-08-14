@@ -65,7 +65,7 @@ class ChatToolServiceIntegrationTest {
             .amount(new BigDecimal("125.00"))
             .category("Subscriptions")
             .frequency(RecurringFrequency.MONTHLY)
-            .startDate(LocalDate.now().withDayOfMonth(1))
+            .startDate(LocalDate.now(clock).withDayOfMonth(1))
             .active(true)
             .build());
 
@@ -83,13 +83,14 @@ class ChatToolServiceIntegrationTest {
     @Test
     void recurringStatusReturnsPostGenerationNextRunDate() {
         Instant now = Instant.now();
+        LocalDate today = LocalDate.now(clock);
         mappingService.createMapping(DIRECT_LINE_USER, CONVERSATION, USER_ID, now.plusSeconds(600));
         recurringExpenseService.saveRecurringExpense(USER_ID, RecurringExpense.builder()
             .description("Monthly subscription")
             .amount(new BigDecimal("125.00"))
             .category("Subscriptions")
             .frequency(RecurringFrequency.MONTHLY)
-            .startDate(LocalDate.now())
+            .startDate(today)
             .active(true)
             .build());
 
@@ -101,7 +102,7 @@ class ChatToolServiceIntegrationTest {
 
         ChatBoundedList<?> bounded = (ChatBoundedList<?>) response.result();
         ChatRecurringExpenseResult result = (ChatRecurringExpenseResult) bounded.content().get(0);
-        assertThat(result.nextRunDate()).isAfter(LocalDate.now());
+        assertThat(result.nextRunDate()).isAfter(today);
         assertThat(result.active()).isTrue();
         assertThat(expenseRepository.findByUserid(USER_ID)).hasSize(1);
     }
@@ -243,7 +244,7 @@ class ChatToolServiceIntegrationTest {
     }
 
     private ChatToolRequest monthlyRequest() {
-        LocalDate today = LocalDate.now();
+        LocalDate today = LocalDate.now(clock);
         return new ChatToolRequest(
             DIRECT_LINE_USER,
             CONVERSATION,

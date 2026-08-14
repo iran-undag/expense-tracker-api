@@ -1,5 +1,6 @@
 package com.example.expensetracker.demo.session;
 
+import com.example.expensetracker.demo.quota.DemoQuotaReservation;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import java.time.LocalDate;
@@ -130,6 +131,52 @@ public class DemoSessionRepository {
             .setParameter("sessionId", sessionId)
             .getResultList();
         return sessions.stream().findFirst();
+    }
+
+    public void saveReservation(DemoQuotaReservation reservation) {
+        entityManager.persist(reservation);
+        entityManager.flush();
+    }
+
+    public Optional<DemoQuotaReservation> findReservation(UUID reservationId) {
+        return Optional.ofNullable(entityManager.find(DemoQuotaReservation.class, reservationId));
+    }
+
+    public Optional<DemoQuotaReservation> lockPendingReservation(UUID reservationId) {
+        List<DemoQuotaReservation> reservations = entityManager.createNativeQuery("""
+            SELECT * FROM demo_quota_reservation WITH (UPDLOCK, HOLDLOCK)
+            WHERE id = :reservationId AND state = 'PENDING'
+            """, DemoQuotaReservation.class)
+            .setParameter("reservationId", reservationId)
+            .getResultList();
+        return reservations.stream().findFirst();
+    }
+
+    public void reclaimExpiredReservations(DemoSession session, OffsetDateTime now) {
+        int expiredCost = ((Number) entityManager.createNativeQuery("""
+            SELECT COALESCE(SUM(cost), 0)
+            FROM demo_quota_reservation WITH (UPDLOCK, HOLDLOCK)
+            WHERE demo_session_id = :sessionId
+              AND state = 'PENDING'
+              AND expires_at <= :now
+            """)
+            .setParameter("sessionId", session.getId())
+            .setParameter("now", now)
+            .getSingleResult()).intValue();
+        if (expiredCost == 0) {
+            return;
+        }
+        entityManager.createNativeQuery("""
+            UPDATE demo_quota_reservation
+            SET state = 'EXPIRED'
+            WHERE demo_session_id = :sessionId
+              AND state = 'PENDING'
+              AND expires_at <= :now
+            """)
+            .setParameter("sessionId", session.getId())
+            .setParameter("now", now)
+            .executeUpdate();
+        session.setReservedActions(Math.max(0, session.getReservedActions() - expiredCost));
     }
 
     public void deleteOwnedData(UUID sessionId) {

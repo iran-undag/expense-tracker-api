@@ -5,6 +5,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.example.expensetracker.repository.ChatIdentityMappingRepository;
 import java.time.Instant;
+import com.example.expensetracker.security.UserDataScope;
+import java.util.List;
+import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -93,5 +96,29 @@ class ChatIdentityMappingServiceIntegrationTest {
         ))
             .isInstanceOf(IllegalArgumentException.class)
             .hasMessage("Direct Line user ID must start with dl_.");
+    }
+
+    @Test
+    void resolveDataScope_returnsStoredDemoSessionScope() {
+        UUID sessionId = UUID.randomUUID();
+        UserDataScope scope = new UserDataScope(
+            "demo:owner", List.of("demo:seed", "demo:owner"), sessionId, true);
+        mappingService.createMapping(
+            "dl_demo_random-user-id", "demo-conversation", scope, NOW.plusSeconds(1800));
+
+        assertThat(mappingService.resolveDataScope(
+            "dl_demo_random-user-id", "demo-conversation", NOW))
+            .contains(scope);
+    }
+
+    @Test
+    void createMapping_rejectsPrefixThatDoesNotMatchScope() {
+        UserDataScope scope = new UserDataScope(
+            "demo:owner", List.of("demo:seed", "demo:owner"), UUID.randomUUID(), true);
+
+        assertThatThrownBy(() -> mappingService.createMapping(
+            "dl_personal-looking", "conversation", scope, NOW.plusSeconds(1800)))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessage("Direct Line user ID prefix must match its data scope.");
     }
 }

@@ -49,6 +49,7 @@ class DemoSessionServiceTest {
         when(digester.digest("resume-token")).thenReturn("digest");
         when(sessionRepository.findByResumeDigest("digest")).thenReturn(Optional.of(session));
         when(sessionRepository.findActiveByResumeDigest("digest")).thenReturn(Optional.of(session));
+        when(sessionRepository.lockActiveSession(session.getId())).thenReturn(Optional.of(session));
         when(sessionRepository.databaseNow()).thenReturn(expiry);
 
         assertThatThrownBy(() -> service.createOrResume("resume-token", "203.0.113.8"))

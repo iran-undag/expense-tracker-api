@@ -14,6 +14,8 @@ import com.example.expensetracker.dto.MonthlySummaryDto;
 import com.example.expensetracker.model.ExpenseCategory;
 import com.example.expensetracker.model.RecurringExpense;
 import com.example.expensetracker.model.RecurringFrequency;
+import com.example.expensetracker.persistence.DataRealmExecutor;
+import com.example.expensetracker.security.UserDataScope;
 import com.example.expensetracker.service.BudgetService;
 import com.example.expensetracker.service.CategoryService;
 import com.example.expensetracker.service.ChatIdentityMappingService;
@@ -46,6 +48,7 @@ import org.springframework.data.domain.Sort;
 @ExtendWith(MockitoExtension.class)
 class ChatToolServiceTest {
     private static final Instant NOW = Instant.parse("2026-07-12T00:00:00Z");
+    private static final UserDataScope SCOPE = UserDataScope.personal("owner");
 
     @Mock private ChatIdentityMappingService mappingService;
     @Mock private RecurringExpenseService recurringExpenseService;
@@ -64,44 +67,44 @@ class ChatToolServiceTest {
         service = new ChatToolService(
             new ChatToolRequestValidator(objectMapper), mappingService,
             recurringExpenseService, categoryService, reportService, budgetService, expenseService,
-            Clock.fixed(NOW, ZoneOffset.UTC));
+            Clock.fixed(NOW, ZoneOffset.UTC), new DataRealmExecutor());
     }
 
     @Test
     void resolvesOwnerThenGeneratesRecurringExpensesOnceBeforeReading() {
-        when(mappingService.resolveUserId("dl_user", "conversation", NOW))
-            .thenReturn(Optional.of("owner"));
+        when(mappingService.resolveDataScope("dl_user", "conversation", NOW))
+            .thenReturn(Optional.of(SCOPE));
         MonthlySummaryDto summary = MonthlySummaryDto.builder()
             .year(2026).month(7).totalAmount(new BigDecimal("125.00"))
             .expenseCount(2L).averageAmount(new BigDecimal("62.50")).build();
-        when(reportService.getMonthlySummary("owner", 2026, 7)).thenReturn(summary);
+        when(reportService.getMonthlySummary(SCOPE, 2026, 7)).thenReturn(summary);
 
         ChatToolResponse response = service.execute(monthlyRequest(), NOW);
 
         assertThat(response.result()).isEqualTo(summary);
-        verify(recurringExpenseService).generateDueExpenses("owner", LocalDate.of(2026, 7, 12));
-        verify(reportService).getMonthlySummary("owner", 2026, 7);
+        verify(recurringExpenseService).generateDueExpenses(SCOPE, LocalDate.of(2026, 7, 12));
+        verify(reportService).getMonthlySummary(SCOPE, 2026, 7);
     }
 
     @Test
     void rejectsUnknownMappingBeforeRecurringGeneration() {
-        when(mappingService.resolveUserId("dl_user", "conversation", NOW))
+        when(mappingService.resolveDataScope("dl_user", "conversation", NOW))
             .thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.execute(monthlyRequest(), NOW))
             .isInstanceOf(ChatIdentityNotFoundException.class);
 
         verify(recurringExpenseService, never()).generateDueExpenses(
-            org.mockito.ArgumentMatchers.anyString(),
+            any(UserDataScope.class),
             org.mockito.ArgumentMatchers.any()
         );
     }
 
     @Test
     void returnsActiveRecurringStatusAfterGenerationWithoutOwnerFields() {
-        when(mappingService.resolveUserId("dl_user", "conversation", NOW))
-            .thenReturn(Optional.of("owner"));
-        when(recurringExpenseService.getRecurringExpenses("owner")).thenReturn(List.of(
+        when(mappingService.resolveDataScope("dl_user", "conversation", NOW))
+            .thenReturn(Optional.of(SCOPE));
+        when(recurringExpenseService.getRecurringExpenses(SCOPE)).thenReturn(List.of(
             RecurringExpense.builder()
                 .id(99L).userid("owner").description("Rent")
                 .amount(new BigDecimal("15000.00")).category("Rent")
@@ -127,17 +130,17 @@ class ChatToolServiceTest {
         assertThat(result.totalCount()).isOne();
         assertThat(result.truncated()).isFalse();
         InOrder order = inOrder(mappingService, recurringExpenseService);
-        order.verify(mappingService).resolveUserId("dl_user", "conversation", NOW);
+        order.verify(mappingService).resolveDataScope("dl_user", "conversation", NOW);
         order.verify(recurringExpenseService, times(1)).generateDueExpenses(
-            "owner", LocalDate.of(2026, 7, 12));
-        order.verify(recurringExpenseService).getRecurringExpenses("owner");
+            SCOPE, LocalDate.of(2026, 7, 12));
+        order.verify(recurringExpenseService).getRecurringExpenses(SCOPE);
     }
 
     @Test
     void returnsRequestedCategoriesAfterGeneration() {
-        when(mappingService.resolveUserId("dl_user", "conversation", NOW))
-            .thenReturn(Optional.of("owner"));
-        when(categoryService.getCategories("owner", true)).thenReturn(List.of(
+        when(mappingService.resolveDataScope("dl_user", "conversation", NOW))
+            .thenReturn(Optional.of(SCOPE));
+        when(categoryService.getCategories(SCOPE, true)).thenReturn(List.of(
             ExpenseCategory.builder().id(1L).userid("owner").name("Food")
                 .systemDefault(true).active(true).build()));
 
@@ -148,16 +151,16 @@ class ChatToolServiceTest {
         assertThat(categories.content().get(0)).isEqualTo(
             new ChatCategoryResult("Food", true, true));
         InOrder order = inOrder(mappingService, recurringExpenseService, categoryService);
-        order.verify(mappingService).resolveUserId("dl_user", "conversation", NOW);
+        order.verify(mappingService).resolveDataScope("dl_user", "conversation", NOW);
         order.verify(recurringExpenseService, times(1)).generateDueExpenses(
-            "owner", LocalDate.of(2026, 7, 12));
-        order.verify(categoryService).getCategories("owner", true);
+            SCOPE, LocalDate.of(2026, 7, 12));
+        order.verify(categoryService).getCategories(SCOPE, true);
     }
 
     @Test
     void delegatesPeriodAggregationWithNormalizedCategoryAfterGeneration() {
-        when(mappingService.resolveUserId("dl_user", "conversation", NOW))
-            .thenReturn(Optional.of("owner"));
+        when(mappingService.resolveDataScope("dl_user", "conversation", NOW))
+            .thenReturn(Optional.of(SCOPE));
         SpendingByPeriodArguments periods = new SpendingByPeriodArguments(
             LocalDate.of(2026, 7, 1), LocalDate.of(2026, 7, 31),
             SpendingGranularity.WEEK, " Food ");
@@ -165,22 +168,22 @@ class ChatToolServiceTest {
         service.execute(request(ChatToolName.SPENDING_BY_PERIOD, periods), NOW);
 
         InOrder order = inOrder(mappingService, recurringExpenseService, reportService);
-        order.verify(mappingService).resolveUserId("dl_user", "conversation", NOW);
+        order.verify(mappingService).resolveDataScope("dl_user", "conversation", NOW);
         order.verify(recurringExpenseService, times(1)).generateDueExpenses(
-            "owner", LocalDate.of(2026, 7, 12));
+            SCOPE, LocalDate.of(2026, 7, 12));
         order.verify(reportService).getSpendingByPeriod(
-            "owner", periods.fromDate(), periods.toDate(), periods.granularity(), "Food");
+            SCOPE, periods.fromDate(), periods.toDate(), periods.granularity(), "Food");
     }
 
     @Test
     void truncatesCategoryResultsAtOneHundredWhileRetainingTotalCount() {
-        when(mappingService.resolveUserId("dl_user", "conversation", NOW))
-            .thenReturn(Optional.of("owner"));
+        when(mappingService.resolveDataScope("dl_user", "conversation", NOW))
+            .thenReturn(Optional.of(SCOPE));
         List<ExpenseCategory> categories = IntStream.rangeClosed(1, 101)
             .mapToObj(index -> ExpenseCategory.builder()
                 .name("Category " + index).active(true).build())
             .toList();
-        when(categoryService.getCategories("owner", false)).thenReturn(categories);
+        when(categoryService.getCategories(SCOPE, false)).thenReturn(categories);
 
         ChatBoundedList<?> result = (ChatBoundedList<?>) service.execute(request(
             ChatToolName.CATEGORY_LIST, new CategoryListArguments(false)), NOW).result();
@@ -192,8 +195,8 @@ class ChatToolServiceTest {
 
     @Test
     void filtersAndTruncatesOrderedRecurringResultsUsingPreTruncationCount() {
-        when(mappingService.resolveUserId("dl_user", "conversation", NOW))
-            .thenReturn(Optional.of("owner"));
+        when(mappingService.resolveDataScope("dl_user", "conversation", NOW))
+            .thenReturn(Optional.of(SCOPE));
         List<RecurringExpense> rules = IntStream.rangeClosed(1, 102)
             .mapToObj(index -> RecurringExpense.builder()
                 .description(index <= 99 ? "Active " + index : "Inactive " + (index - 99))
@@ -205,7 +208,7 @@ class ChatToolServiceTest {
                 .active(index <= 99)
                 .build())
             .toList();
-        when(recurringExpenseService.getRecurringExpenses("owner")).thenReturn(rules);
+        when(recurringExpenseService.getRecurringExpenses(SCOPE)).thenReturn(rules);
 
         ChatBoundedList<?> activeOnly = (ChatBoundedList<?>) service.execute(request(
             ChatToolName.RECURRING_EXPENSE_STATUS,
@@ -236,9 +239,9 @@ class ChatToolServiceTest {
 
     @Test
     void sortsExpenseLookupByAmountWithStableTiesAndPropagatesAmountBounds() {
-        when(mappingService.resolveUserId("dl_user", "conversation", NOW))
-            .thenReturn(Optional.of("owner"));
-        when(expenseService.getAllExpenses(eq("owner"), any(), any()))
+        when(mappingService.resolveDataScope("dl_user", "conversation", NOW))
+            .thenReturn(Optional.of(SCOPE));
+        when(expenseService.getAllExpenses(eq(SCOPE), any(), any()))
             .thenReturn(Page.empty());
         ExpenseLookupArguments lookup = new ExpenseLookupArguments(
             LocalDate.of(2026, 7, 1), LocalDate.of(2026, 7, 31),
@@ -250,7 +253,7 @@ class ChatToolServiceTest {
         ArgumentCaptor<ExpenseFilterCriteria> filters =
             ArgumentCaptor.forClass(ExpenseFilterCriteria.class);
         ArgumentCaptor<Pageable> pageable = ArgumentCaptor.forClass(Pageable.class);
-        verify(expenseService).getAllExpenses(eq("owner"), filters.capture(), pageable.capture());
+        verify(expenseService).getAllExpenses(eq(SCOPE), filters.capture(), pageable.capture());
         assertThat(filters.getValue().minAmount()).isEqualByComparingTo("10.00");
         assertThat(filters.getValue().maxAmount()).isEqualByComparingTo("20.00");
         assertThat(pageable.getValue().getPageNumber()).isZero();
@@ -268,9 +271,9 @@ class ChatToolServiceTest {
 
     @Test
     void defaultsExpenseLookupToDateDescendingWithStableIdTieBreaker() {
-        when(mappingService.resolveUserId("dl_user", "conversation", NOW))
-            .thenReturn(Optional.of("owner"));
-        when(expenseService.getAllExpenses(eq("owner"), any(), any()))
+        when(mappingService.resolveDataScope("dl_user", "conversation", NOW))
+            .thenReturn(Optional.of(SCOPE));
+        when(expenseService.getAllExpenses(eq(SCOPE), any(), any()))
             .thenReturn(Page.empty());
         ExpenseLookupArguments lookup = new ExpenseLookupArguments(
             LocalDate.of(2026, 7, 1), LocalDate.of(2026, 7, 31),
@@ -279,7 +282,7 @@ class ChatToolServiceTest {
         service.execute(request(ChatToolName.EXPENSE_LOOKUP, lookup), NOW);
 
         ArgumentCaptor<Pageable> pageable = ArgumentCaptor.forClass(Pageable.class);
-        verify(expenseService).getAllExpenses(eq("owner"), any(), pageable.capture());
+        verify(expenseService).getAllExpenses(eq(SCOPE), any(), pageable.capture());
         assertThat(pageable.getValue().getPageNumber()).isEqualTo(2);
         assertThat(pageable.getValue().getPageSize()).isEqualTo(20);
         Sort sort = pageable.getValue().getSort();

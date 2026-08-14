@@ -2,6 +2,7 @@ package com.example.expensetracker.controller;
 
 import com.example.expensetracker.dto.DirectLineTokenResponseDto;
 import com.example.expensetracker.security.CurrentUserService;
+import com.example.expensetracker.security.UserDataScope;
 import com.example.expensetracker.service.DirectLineTokenService;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import lombok.RequiredArgsConstructor;
@@ -23,10 +24,10 @@ public class BotTokenController {
 
     @PostMapping("/token")
     public ResponseEntity<DirectLineTokenResponseDto> issueToken(Authentication authentication) {
-        String userId = currentUserService.getUserId(authentication);
+        UserDataScope scope = currentUserService.getDataScope(authentication);
         String firstName = currentUserService.getFirstName(authentication);
         return ResponseEntity.ok()
             .cacheControl(CacheControl.noStore())
-            .body(directLineTokenService.issueToken(userId, firstName));
+            .body(directLineTokenService.issueToken(scope, firstName));
     }
 }

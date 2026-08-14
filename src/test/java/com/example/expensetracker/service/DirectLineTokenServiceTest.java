@@ -17,6 +17,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 import java.time.Instant;
+import com.example.expensetracker.security.UserDataScope;
+import java.util.List;
+import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -88,11 +91,32 @@ class DirectLineTokenServiceTest {
         verify(mappingService).createMapping(
             org.mockito.ArgumentMatchers.eq(response.getUserId()),
             org.mockito.ArgumentMatchers.eq("conversation-123"),
-            org.mockito.ArgumentMatchers.eq("expense-owner-id"),
+            org.mockito.ArgumentMatchers.eq(UserDataScope.personal("expense-owner-id")),
             expiry.capture()
         );
         assertThat(expiry.getValue())
             .isBetween(before.plusSeconds(1800), after.plusSeconds(1800));
+        server.verify();
+    }
+
+    @Test
+    void issueToken_usesDemoPrefixAndStoresDemoScope() {
+        UserDataScope scope = new UserDataScope(
+            "demo:owner", List.of("demo:seed", "demo:owner"), UUID.randomUUID(), true);
+        server.expect(once(), requestTo("https://directline.example.test/v3/directline/tokens/generate"))
+            .andExpect(jsonPath("$.user.id", startsWith("dl_demo_")))
+            .andRespond(withSuccess("""
+                {"conversationId":"demo-conversation","token":"demo-token","expires_in":1800}
+                """, MediaType.APPLICATION_JSON));
+
+        var response = service.issueToken(scope, null);
+
+        assertThat(response.getUserId()).startsWith("dl_demo_");
+        verify(mappingService).createMapping(
+            org.mockito.ArgumentMatchers.eq(response.getUserId()),
+            org.mockito.ArgumentMatchers.eq("demo-conversation"),
+            org.mockito.ArgumentMatchers.eq(scope),
+            org.mockito.ArgumentMatchers.any(Instant.class));
         server.verify();
     }
 

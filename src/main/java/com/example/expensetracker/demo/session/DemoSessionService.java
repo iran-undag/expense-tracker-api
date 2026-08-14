@@ -60,7 +60,11 @@ public class DemoSessionService {
 
         Optional<DemoSession> activeSession = findActiveCookieSession(rawResumeCookie);
         if (activeSession.isPresent()) {
-            return issueAccessToken(activeSession.get(), rawResumeCookie);
+            DemoSession lockedSession = sessionRepository.lockActiveSession(activeSession.get().getId())
+                .orElseThrow(DemoSessionException::sessionExpired);
+            sessionRepository.reclaimExpiredReservations(
+                lockedSession, sessionRepository.databaseNow());
+            return issueAccessToken(lockedSession, rawResumeCookie);
         }
 
         rateLimiter.checkAndRecord(remoteAddress);

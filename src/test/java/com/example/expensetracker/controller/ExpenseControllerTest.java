@@ -2,6 +2,7 @@ package com.example.expensetracker.controller;
 
 import com.example.expensetracker.dto.ExpenseCreateRequestDto;
 import com.example.expensetracker.demo.quota.DemoMutationExecutor;
+import com.example.expensetracker.demo.quota.DemoQuotaReservationService;
 import com.example.expensetracker.demo.session.DemoSessionException;
 import com.example.expensetracker.model.Expense;
 import com.example.expensetracker.security.CurrentUserService;
@@ -41,6 +42,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentCaptor.forClass;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -81,6 +83,9 @@ class ExpenseControllerTest {
     @MockBean
     private DemoMutationExecutor mutationExecutor;
 
+    @MockBean
+    private DemoQuotaReservationService reservationService;
+
     @Autowired
     private ObjectMapper objectMapper;
 
@@ -88,6 +93,7 @@ class ExpenseControllerTest {
     void executeMutations() {
         when(mutationExecutor.execute(any(), org.mockito.ArgumentMatchers.anyInt(), any()))
             .thenAnswer(invocation -> ((Supplier<?>) invocation.getArgument(2)).get());
+        when(reservationService.reserve(any(), eq(1))).thenReturn(java.util.UUID.randomUUID());
     }
 
     @Test
@@ -317,6 +323,25 @@ class ExpenseControllerTest {
 
         verify(receiptProcessor).processReceipt(any(), eq(activeCategories));
         verify(receiptCategoryNormalizer).normalize(extractedExpense, activeCategories);
+        verify(reservationService).finalize(any());
+        verify(reservationService, never()).release(any());
+    }
+
+    @Test
+    void processReceipt_shouldReleaseReservationWhenProviderFails() throws Exception {
+        Authentication authentication = new TestingAuthenticationToken("testuser", null);
+        MockMultipartFile image = new MockMultipartFile(
+            "image", "receipt.jpg", MediaType.IMAGE_JPEG_VALUE, new byte[]{1});
+        when(currentUserService.getDataScope(authentication)).thenReturn(SCOPE);
+        when(receiptCategoryNormalizer.getActiveCategoryNames(SCOPE)).thenReturn(List.of("Other"));
+        when(receiptProcessor.processReceipt(any(), any()))
+            .thenThrow(new IllegalStateException("provider failure"));
+
+        mockMvc.perform(multipart("/api/expenses/receipt").file(image).principal(authentication))
+            .andExpect(status().isInternalServerError());
+
+        verify(reservationService).release(any());
+        verify(reservationService, never()).finalize(any());
     }
 
     @Test

@@ -8,6 +8,7 @@ public class DemoSessionException extends RuntimeException {
     private static final String SESSION_EXPIRED = "DEMO_SESSION_EXPIRED";
     private static final String SERVICE_UNAVAILABLE = "DEMO_SERVICE_UNAVAILABLE";
     private static final String QUOTA_EXHAUSTED = "DEMO_QUOTA_EXHAUSTED";
+    private static final String FEATURE_DISABLED = "DEMO_FEATURE_DISABLED";
 
     private final String code;
     private final HttpStatus status;
@@ -61,6 +62,16 @@ public class DemoSessionException extends RuntimeException {
             QUOTA_EXHAUSTED,
             HttpStatus.TOO_MANY_REQUESTS,
             "The demo action limit has been reached.",
+            null,
+            null
+        );
+    }
+
+    public static DemoSessionException featureDisabled() {
+        return new DemoSessionException(
+            FEATURE_DISABLED,
+            HttpStatus.FORBIDDEN,
+            "This feature is unavailable in demo sessions.",
             null,
             null
         );

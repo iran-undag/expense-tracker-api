@@ -1,6 +1,8 @@
 package com.example.expensetracker.controller;
 
 import com.example.expensetracker.dto.SpeechTokenResponseDto;
+import com.example.expensetracker.demo.quota.DemoQuotaReservationService;
+import java.util.UUID;
 import com.example.expensetracker.security.CurrentUserService;
 import com.example.expensetracker.service.SpeechTokenService;
 import lombok.RequiredArgsConstructor;
@@ -17,10 +19,22 @@ public class SpeechController {
 
     private final SpeechTokenService speechTokenService;
     private final CurrentUserService currentUserService;
+    private final DemoQuotaReservationService reservationService;
 
     @PostMapping("/token")
     public ResponseEntity<SpeechTokenResponseDto> issueToken(Authentication authentication) {
         currentUserService.getUserId(authentication);
-        return ResponseEntity.ok(speechTokenService.issueToken());
+        UUID reservationId = reservationService.reserve(authentication, 1);
+        boolean finalized = false;
+        try {
+            SpeechTokenResponseDto response = speechTokenService.issueToken();
+            reservationService.finalize(reservationId);
+            finalized = true;
+            return ResponseEntity.ok(response);
+        } finally {
+            if (!finalized) {
+                reservationService.release(reservationId);
+            }
+        }
     }
 }

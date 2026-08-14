@@ -1,6 +1,7 @@
 package com.example.expensetracker.controller;
 
 import com.example.expensetracker.dto.ImportResultDto;
+import com.example.expensetracker.demo.security.DemoFeatureGuard;
 import com.example.expensetracker.security.CurrentUserService;
 import com.example.expensetracker.service.ImportExportService;
 import java.time.LocalDate;
@@ -24,6 +25,7 @@ public class ImportExportController {
 
     private final ImportExportService importExportService;
     private final CurrentUserService currentUserService;
+    private final DemoFeatureGuard demoFeatureGuard;
 
     @GetMapping(value = "/export", produces = "text/csv")
     public ResponseEntity<String> exportData(
@@ -31,6 +33,7 @@ public class ImportExportController {
         @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate,
         Authentication authentication
     ) {
+        demoFeatureGuard.requirePersonal(authentication);
         String userId = currentUserService.getUserId(authentication);
         return ResponseEntity.ok()
             .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"expense-records.csv\"")
@@ -43,6 +46,7 @@ public class ImportExportController {
         @RequestBody String csv,
         Authentication authentication
     ) {
+        demoFeatureGuard.requirePersonal(authentication);
         String userId = currentUserService.getUserId(authentication);
         return ResponseEntity.ok(importExportService.importExpensesCsv(userId, csv));
     }

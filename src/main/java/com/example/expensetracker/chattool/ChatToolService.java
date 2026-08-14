@@ -10,6 +10,9 @@ import com.example.expensetracker.service.ExpenseFilterCriteria;
 import com.example.expensetracker.service.ExpenseService;
 import com.example.expensetracker.service.RecurringExpenseService;
 import com.example.expensetracker.service.ReportService;
+import com.example.expensetracker.persistence.DataRealm;
+import com.example.expensetracker.persistence.DataRealmExecutor;
+import com.example.expensetracker.security.UserDataScope;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -31,6 +34,7 @@ public class ChatToolService {
     private final BudgetService budgetService;
     private final ExpenseService expenseService;
     private final Clock clock;
+    private final DataRealmExecutor realmExecutor;
 
     public ChatToolService(
         ChatToolRequestValidator validator,
@@ -40,7 +44,8 @@ public class ChatToolService {
         ReportService reportService,
         BudgetService budgetService,
         ExpenseService expenseService,
-        Clock clock
+        Clock clock,
+        DataRealmExecutor realmExecutor
     ) {
         this.validator = validator;
         this.mappingService = mappingService;
@@ -50,57 +55,63 @@ public class ChatToolService {
         this.budgetService = budgetService;
         this.expenseService = expenseService;
         this.clock = clock;
+        this.realmExecutor = realmExecutor;
     }
 
     public ChatToolResponse execute(ChatToolRequest request, Instant now) {
         ValidatedChatToolRequest validated = validator.validate(request);
-        String userId = mappingService.resolveUserId(
+        DataRealm realm = validated.directLineUserId().startsWith("dl_demo_")
+            ? DataRealm.DEMO : DataRealm.PRIMARY;
+        return realmExecutor.inRealm(realm, () -> executeInRealm(validated, now));
+    }
+
+    private ChatToolResponse executeInRealm(ValidatedChatToolRequest validated, Instant now) {
+        UserDataScope scope = mappingService.resolveDataScope(
                 validated.directLineUserId(), validated.conversationId(), now)
             .orElseThrow(ChatIdentityNotFoundException::new);
-        recurringExpenseService.generateDueExpenses(userId, LocalDate.now(clock));
+        recurringExpenseService.generateDueExpenses(scope, LocalDate.now(clock));
 
         Object result = switch (validated.tool()) {
-            case MONTHLY_SUMMARY -> monthlySummary(userId, validated.arguments());
-            case CATEGORY_BREAKDOWN -> categoryBreakdown(userId, validated.arguments());
-            case SPENDING_TREND -> spendingTrend(userId, validated.arguments());
-            case BUDGET_STATUS -> budgetStatus(userId, validated.arguments());
-            case EXPENSE_LOOKUP -> expenseLookup(userId, validated.arguments());
-            case RECURRING_EXPENSE_STATUS -> recurringExpenseStatus(userId, validated.arguments());
-            case CATEGORY_LIST -> categoryList(userId, validated.arguments());
-            case SPENDING_BY_PERIOD -> spendingByPeriod(userId, validated.arguments());
+            case MONTHLY_SUMMARY -> monthlySummary(scope, validated.arguments());
+            case CATEGORY_BREAKDOWN -> categoryBreakdown(scope, validated.arguments());
+            case SPENDING_TREND -> spendingTrend(scope, validated.arguments());
+            case BUDGET_STATUS -> budgetStatus(scope, validated.arguments());
+            case EXPENSE_LOOKUP -> expenseLookup(scope, validated.arguments());
+            case RECURRING_EXPENSE_STATUS -> recurringExpenseStatus(scope, validated.arguments());
+            case CATEGORY_LIST -> categoryList(scope, validated.arguments());
+            case SPENDING_BY_PERIOD -> spendingByPeriod(scope, validated.arguments());
         };
         return new ChatToolResponse(validated.tool(), result);
     }
 
-    private Object monthlySummary(String userId, ChatToolArguments arguments) {
+    private Object monthlySummary(UserDataScope scope, ChatToolArguments arguments) {
         MonthlySummaryArguments value = (MonthlySummaryArguments) arguments;
-        return reportService.getMonthlySummary(userId, value.year(), value.month());
+        return reportService.getMonthlySummary(scope, value.year(), value.month());
     }
 
-    private Object categoryBreakdown(String userId, ChatToolArguments arguments) {
+    private Object categoryBreakdown(UserDataScope scope, ChatToolArguments arguments) {
         CategoryBreakdownArguments value = (CategoryBreakdownArguments) arguments;
-        return reportService.getCategoryBreakdown(userId, value.fromDate(), value.toDate());
+        return reportService.getCategoryBreakdown(scope, value.fromDate(), value.toDate());
     }
 
-    private Object spendingTrend(String userId, ChatToolArguments arguments) {
+    private Object spendingTrend(UserDataScope scope, ChatToolArguments arguments) {
         SpendingTrendArguments value = (SpendingTrendArguments) arguments;
         return reportService.getSpendingTrend(
-            userId, value.year(), value.month(), value.months(), normalize(value.category()));
+            scope, value.year(), value.month(), value.months(), normalize(value.category()));
     }
 
-    private Object budgetStatus(String userId, ChatToolArguments arguments) {
+    private Object budgetStatus(UserDataScope scope, ChatToolArguments arguments) {
         BudgetStatusArguments value = (BudgetStatusArguments) arguments;
-        return budgetService.getBudgetSummary(userId, value.year(), value.month());
+        return budgetService.getBudgetSummary(scope, value.year(), value.month());
     }
 
-    private ChatExpensePage expenseLookup(String userId, ChatToolArguments arguments) {
+    private ChatExpensePage expenseLookup(UserDataScope scope, ChatToolArguments arguments) {
         ExpenseLookupArguments value = (ExpenseLookupArguments) arguments;
-        Page<Expense> page = expenseService.getAllExpenses(
-            userId,
-            new ExpenseFilterCriteria(
-                value.fromDate(), value.toDate(), normalize(value.category()),
-                value.minAmount(), value.maxAmount(), normalize(value.query())),
-            PageRequest.of(value.page(), value.size(), expenseSort(value)));
+        ExpenseFilterCriteria criteria = new ExpenseFilterCriteria(
+            value.fromDate(), value.toDate(), normalize(value.category()),
+            value.minAmount(), value.maxAmount(), normalize(value.query()));
+        PageRequest pageRequest = PageRequest.of(value.page(), value.size(), expenseSort(value));
+        Page<Expense> page = expenseService.getAllExpenses(scope, criteria, pageRequest);
         List<ChatExpenseResult> content = page.getContent().stream()
             .map(expense -> new ChatExpenseResult(
                 expense.getId(), expense.getDescription(), expense.getAmount(),
@@ -125,10 +136,11 @@ public class ChatToolService {
     }
 
     private ChatBoundedList<ChatRecurringExpenseResult> recurringExpenseStatus(
-        String userId, ChatToolArguments arguments
+        UserDataScope scope, ChatToolArguments arguments
     ) {
         RecurringExpenseStatusArguments value = (RecurringExpenseStatusArguments) arguments;
-        List<RecurringExpense> filtered = recurringExpenseService.getRecurringExpenses(userId).stream()
+        List<RecurringExpense> values = recurringExpenseService.getRecurringExpenses(scope);
+        List<RecurringExpense> filtered = values.stream()
             .filter(rule -> value.includeInactive() || rule.isActive())
             .toList();
         List<ChatRecurringExpenseResult> results = filtered.stream()
@@ -140,11 +152,11 @@ public class ChatToolService {
     }
 
     private ChatBoundedList<ChatCategoryResult> categoryList(
-        String userId, ChatToolArguments arguments
+        UserDataScope scope, ChatToolArguments arguments
     ) {
         CategoryListArguments value = (CategoryListArguments) arguments;
         List<ExpenseCategory> categories = categoryService.getCategories(
-            userId, value.includeInactive());
+            scope, value.includeInactive());
         List<ChatCategoryResult> results = categories.stream()
             .map(category -> new ChatCategoryResult(
                 category.getName(), category.isSystemDefault(), category.isActive()))
@@ -152,10 +164,10 @@ public class ChatToolService {
         return bounded(results);
     }
 
-    private Object spendingByPeriod(String userId, ChatToolArguments arguments) {
+    private Object spendingByPeriod(UserDataScope scope, ChatToolArguments arguments) {
         SpendingByPeriodArguments value = (SpendingByPeriodArguments) arguments;
         return reportService.getSpendingByPeriod(
-            userId, value.fromDate(), value.toDate(), value.granularity(),
+            scope, value.fromDate(), value.toDate(), value.granularity(),
             normalize(value.category()));
     }
 

@@ -25,6 +25,7 @@ public class DemoQuotaService {
         validateCost(cost);
         DemoSession session = repository().lockActiveSession(sessionId)
             .orElseThrow(DemoSessionException::sessionExpired);
+        repository().reclaimExpiredReservations(session, repository().databaseNow());
         if (totalActions(session) + cost > ACTION_LIMIT) {
             throw DemoSessionException.quotaExhausted();
         }

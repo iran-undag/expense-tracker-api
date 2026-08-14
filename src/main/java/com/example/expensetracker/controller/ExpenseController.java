@@ -6,6 +6,7 @@ import com.example.expensetracker.dto.ExpenseResponseDto;
 import com.example.expensetracker.dto.PageResponseDto;
 import com.example.expensetracker.exception.InvalidSortPropertyException;
 import com.example.expensetracker.demo.quota.DemoMutationExecutor;
+import com.example.expensetracker.demo.quota.DemoQuotaReservationService;
 import com.example.expensetracker.demo.session.DemoSessionException;
 import com.example.expensetracker.model.Expense;
 import com.example.expensetracker.security.CurrentUserService;
@@ -24,6 +25,7 @@ import jakarta.validation.Valid;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Pageable;
@@ -61,6 +63,7 @@ public class ExpenseController {
     private final CurrentUserService currentUserService;
     private final RecurringExpenseService recurringExpenseService;
     private final DemoMutationExecutor mutationExecutor;
+    private final DemoQuotaReservationService reservationService;
 
     @PostMapping
     @Operation(
@@ -269,15 +272,26 @@ public class ExpenseController {
             "Received request to process receipt: {}",
             image.getOriginalFilename()
         );
-        UserDataScope scope = currentUserService.getDataScope(authentication);
-        List<String> activeCategoryNames = receiptCategoryNormalizer.getActiveCategoryNames(scope);
-        Expense extractedExpense = receiptProcessor.processReceipt(image, activeCategoryNames);
-        extractedExpense.setUserid(scope.ownerId());
-        extractedExpense.setDemoSessionId(scope.demoSessionId());
-        extractedExpense.setDemoSeed(false);
-        extractedExpense.setCategory(receiptCategoryNormalizer.normalize(extractedExpense, activeCategoryNames));
-        log.info("Extracted expense details: {}", extractedExpense);
-        return ResponseEntity.ok(ExpenseMapper.toDto(extractedExpense));
+        UUID reservationId = reservationService.reserve(authentication, 1);
+        boolean finalized = false;
+        try {
+            UserDataScope scope = currentUserService.getDataScope(authentication);
+            List<String> activeCategoryNames = receiptCategoryNormalizer.getActiveCategoryNames(scope);
+            Expense extractedExpense = receiptProcessor.processReceipt(image, activeCategoryNames);
+            extractedExpense.setUserid(scope.ownerId());
+            extractedExpense.setDemoSessionId(scope.demoSessionId());
+            extractedExpense.setDemoSeed(false);
+            extractedExpense.setCategory(
+                receiptCategoryNormalizer.normalize(extractedExpense, activeCategoryNames));
+            reservationService.finalize(reservationId);
+            finalized = true;
+            log.info("Extracted expense details: {}", extractedExpense);
+            return ResponseEntity.ok(ExpenseMapper.toDto(extractedExpense));
+        } finally {
+            if (!finalized) {
+                reservationService.release(reservationId);
+            }
+        }
     }
 
     private void validateSortProperties(Pageable pageable) {
