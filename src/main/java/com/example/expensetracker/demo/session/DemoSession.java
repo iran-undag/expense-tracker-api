@@ -45,6 +45,7 @@ public class DemoSession {
     @Column(name = "reserved_actions", nullable = false)
     private int reservedActions;
 
-    @Column(name = "resume_token_digest", nullable = false, length = 64, unique = true)
+    @Column(name = "resume_token_digest", nullable = false, length = 64, unique = true,
+        columnDefinition = "CHAR(64)")
     private String resumeTokenDigest;
 }

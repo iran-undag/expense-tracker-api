@@ -1,7 +1,10 @@
 package com.example.expensetracker.exception;
 
+import com.example.expensetracker.demo.session.DemoSessionException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.CacheControl;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -31,6 +34,23 @@ public class GlobalExceptionHandler {
 
     public GlobalExceptionHandler(@Value("${spring.servlet.multipart.max-file-size:1MB}") String maxFileSize) {
         this.maxFileSize = DataSize.parse(maxFileSize);
+    }
+
+    @ExceptionHandler(DemoSessionException.class)
+    public ResponseEntity<Object> handleDemoSessionException(DemoSessionException ex) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("timestamp", LocalDateTime.now());
+        body.put("status", ex.status().value());
+        body.put("error", ex.status().getReasonPhrase());
+        body.put("code", ex.code());
+        body.put("message", ex.getMessage());
+
+        ResponseEntity.BodyBuilder response = ResponseEntity.status(ex.status())
+            .cacheControl(CacheControl.noStore());
+        if (ex.retryAfterSeconds() != null) {
+            response.header(HttpHeaders.RETRY_AFTER, Long.toString(ex.retryAfterSeconds()));
+        }
+        return response.body(body);
     }
 
     @ExceptionHandler(ReceiptProcessingException.class)

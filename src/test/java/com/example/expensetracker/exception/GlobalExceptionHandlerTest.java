@@ -1,7 +1,9 @@
 package com.example.expensetracker.exception;
 
+import com.example.expensetracker.demo.session.DemoSessionException;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpHeaders;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 import java.net.SocketTimeoutException;
@@ -10,6 +12,19 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class GlobalExceptionHandlerTest {
+
+    @Test
+    void handleDemoSessionException_shouldReturnStableCodeAndRetryAfter() {
+        GlobalExceptionHandler handler = new GlobalExceptionHandler("1MB");
+
+        var response = handler.handleDemoSessionException(DemoSessionException.capacityReached(42));
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.TOO_MANY_REQUESTS);
+        assertThat(response.getHeaders().getFirst(HttpHeaders.RETRY_AFTER)).isEqualTo("42");
+        assertThat(response.getHeaders().getCacheControl()).isEqualTo("no-store");
+        Map<?, ?> body = (Map<?, ?>) response.getBody();
+        assertThat(body.get("code")).isEqualTo("DEMO_CAPACITY_REACHED");
+    }
 
     @Test
     void handleReceiptProcessingException_withTimeoutCause_shouldReturnTimeoutMessage() {

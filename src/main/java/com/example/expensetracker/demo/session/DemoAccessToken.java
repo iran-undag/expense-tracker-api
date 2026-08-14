@@ -30,7 +30,8 @@ public class DemoAccessToken {
     @Column(name = "demo_session_id", nullable = false)
     private UUID demoSessionId;
 
-    @Column(name = "token_digest", nullable = false, length = 64, unique = true)
+    @Column(name = "token_digest", nullable = false, length = 64, unique = true,
+        columnDefinition = "CHAR(64)")
     private String tokenDigest;
 
     @Column(name = "created_at", nullable = false)

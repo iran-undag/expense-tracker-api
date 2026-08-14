@@ -1,6 +1,7 @@
 package com.example.expensetracker.demo.security;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -8,6 +9,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.example.expensetracker.config.CorrelationIdFilter;
+import com.example.expensetracker.demo.session.DemoSessionController;
+import com.example.expensetracker.demo.session.DemoSessionFacade;
+import com.example.expensetracker.demo.session.DemoSessionResponse;
+import com.example.expensetracker.demo.session.DemoSessionService;
 import com.example.expensetracker.persistence.DataRealmContext;
 import com.example.expensetracker.security.ProdSecurityConfig;
 import java.time.OffsetDateTime;
@@ -24,7 +29,6 @@ import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
-import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.springframework.security.core.Authentication;
@@ -35,10 +39,9 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-@WebMvcTest(DemoAuthenticationProbeController.class)
+@WebMvcTest({DemoAuthenticationProbeController.class, DemoSessionController.class})
 @Import({
     ProdSecurityConfig.class,
     CorrelationIdFilter.class,
@@ -63,6 +66,9 @@ public class DemoAuthenticationIntegrationTest {
 
     @MockBean
     private JwtDecoder jwtDecoder;
+
+    @MockBean
+    private DemoSessionFacade demoSessionFacade;
 
     @BeforeEach
     void clearDemoRows() {
@@ -132,6 +138,14 @@ public class DemoAuthenticationIntegrationTest {
 
     @Test
     void permitsOnlyTheDemoSessionCreationMethodWithoutAuthentication() throws Exception {
+        OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+        when(demoSessionFacade.createOrResume(any(), any())).thenReturn(
+            new DemoSessionService.SessionGrant(
+                new DemoSessionResponse("dmo_access", now.plusMinutes(15), now.plusHours(6), 20, 0, 20),
+                "resume-token",
+                21_600
+            ));
+
         mockMvc.perform(post("/api/demo/sessions"))
             .andExpect(status().isOk());
 
@@ -228,11 +242,6 @@ class DemoAuthenticationProbeController {
             "principalName", authentication.getName(),
             "realm", DataRealmContext.current().orElseThrow().name()
         );
-    }
-
-    @PostMapping("/api/demo/sessions")
-    ResponseEntity<Void> createDemoSession() {
-        return ResponseEntity.ok().build();
     }
 
     @GetMapping("/demo-auth-failure")
