@@ -1,5 +1,6 @@
 package com.example.expensetracker.security;
 
+import com.example.expensetracker.demo.security.DemoPrincipal;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
@@ -28,6 +29,10 @@ public class CurrentUserService {
             }
 
             return jwt.getSubject();
+        }
+
+        if (principal instanceof DemoPrincipal demoPrincipal) {
+            return demoPrincipal.persistenceOwnerId();
         }
 
         return authentication.getName();

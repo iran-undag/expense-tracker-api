@@ -1,5 +1,6 @@
 package com.example.expensetracker.security;
 
+import com.example.expensetracker.demo.security.DemoPrincipal;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.authentication.TestingAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -7,8 +8,11 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 
 import java.time.Instant;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.Collections;
 import java.util.Map;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -57,6 +61,19 @@ class CurrentUserServiceTest {
         String userId = currentUserService.getUserId(authentication);
 
         assertThat(userId).isEqualTo("dev-user");
+    }
+
+    @Test
+    void getUserId_usesDemoPersistenceOwnerInsteadOfSharedAccount() {
+        DemoPrincipal principal = new DemoPrincipal(
+                UUID.fromString("11111111-1111-1111-1111-111111111111"),
+                "shared-demo-account",
+                "demo-session-owner",
+                OffsetDateTime.of(2026, 8, 14, 20, 0, 0, 0, ZoneOffset.UTC));
+        TestingAuthenticationToken authentication = new TestingAuthenticationToken(principal, null);
+        authentication.setAuthenticated(true);
+
+        assertThat(currentUserService.getUserId(authentication)).isEqualTo("demo-session-owner");
     }
 
     @Test

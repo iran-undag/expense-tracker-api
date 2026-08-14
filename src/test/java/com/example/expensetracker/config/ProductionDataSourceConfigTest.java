@@ -19,6 +19,7 @@ import static org.assertj.core.api.Assertions.assertThat;
         "demo.datasource.password=",
         "demo.datasource.driver-class-name=org.h2.Driver",
         "demo.datasource.hikari.minimum-idle=0",
+        "demo.token-hmac-key=0123456789abcdef0123456789abcdef",
         "spring.jpa.database-platform=org.hibernate.dialect.H2Dialect",
         "spring.jpa.hibernate.ddl-auto=none",
         "spring.flyway.enabled=false"

@@ -8,7 +8,9 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -19,6 +21,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @WebMvcTest(ProdSecurityProbeController.class)
 @Import({ProdSecurityConfig.class, CorrelationIdFilter.class})
 @ActiveProfiles("prod")
+@TestPropertySource(properties = "demo.token-hmac-key=0123456789abcdef0123456789abcdef")
 class ProdSecurityConfigTest {
 
     @Autowired
@@ -26,6 +29,9 @@ class ProdSecurityConfigTest {
 
     @MockBean
     private JwtDecoder jwtDecoder;
+
+    @MockBean(name = "demoJdbcTemplate")
+    private JdbcTemplate demoJdbcTemplate;
 
     @Test
     void allowsUnauthenticatedLivenessProbe() throws Exception {
