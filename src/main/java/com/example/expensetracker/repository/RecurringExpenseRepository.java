@@ -10,6 +10,9 @@ import org.springframework.stereotype.Repository;
 @Repository
 public interface RecurringExpenseRepository extends JpaRepository<RecurringExpense, Long> {
     List<RecurringExpense> findByUseridOrderByActiveDescNextRunDateAsc(String userId);
+    List<RecurringExpense> findByUseridInOrderByActiveDescNextRunDateAsc(List<String> userIds);
     List<RecurringExpense> findByUseridAndActiveTrueAndNextRunDateLessThanEqual(String userId, LocalDate nextRunDate);
+    List<RecurringExpense> findByUseridInAndActiveTrueAndNextRunDateLessThanEqual(
+        List<String> userIds, LocalDate nextRunDate);
     Optional<RecurringExpense> findByIdAndUserid(Long id, String userId);
 }

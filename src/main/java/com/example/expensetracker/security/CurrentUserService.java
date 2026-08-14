@@ -1,6 +1,7 @@
 package com.example.expensetracker.security;
 
 import com.example.expensetracker.demo.security.DemoPrincipal;
+import java.util.List;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
@@ -38,6 +39,19 @@ public class CurrentUserService {
         return authentication.getName();
     }
 
+    public UserDataScope getDataScope(Authentication authentication) {
+        Object principal = authenticatedPrincipal(authentication);
+        if (principal instanceof DemoPrincipal demo) {
+            return new UserDataScope(
+                demo.persistenceOwnerId(),
+                List.of("demo:seed", demo.persistenceOwnerId()),
+                demo.sessionId(),
+                true
+            );
+        }
+        return UserDataScope.personal(getUserId(authentication));
+    }
+
     public String getFirstName(Authentication authentication) {
         if (authentication == null || !authentication.isAuthenticated()) {
             throw new IllegalArgumentException("Authenticated user is required.");
@@ -46,6 +60,13 @@ public class CurrentUserService {
             return null;
         }
         return sanitizeFirstName(jwt.getClaimAsString("given_name"));
+    }
+
+    private Object authenticatedPrincipal(Authentication authentication) {
+        if (authentication == null || !authentication.isAuthenticated()) {
+            throw new IllegalArgumentException("Authenticated user is required.");
+        }
+        return authentication.getPrincipal();
     }
 
     private String sanitizeFirstName(String value) {

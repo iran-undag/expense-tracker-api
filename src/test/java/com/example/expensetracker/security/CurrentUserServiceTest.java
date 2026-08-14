@@ -11,6 +11,7 @@ import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -74,6 +75,36 @@ class CurrentUserServiceTest {
         authentication.setAuthenticated(true);
 
         assertThat(currentUserService.getUserId(authentication)).isEqualTo("demo-session-owner");
+    }
+
+    @Test
+    void getDataScope_includesSeedAndSessionOwnersForDemoPrincipal() {
+        UUID sessionId = UUID.fromString("11111111-1111-1111-1111-111111111111");
+        DemoPrincipal principal = new DemoPrincipal(
+                sessionId,
+                "shared-demo-account",
+                "demo-session-owner",
+                OffsetDateTime.of(2026, 8, 14, 20, 0, 0, 0, ZoneOffset.UTC));
+        TestingAuthenticationToken authentication = new TestingAuthenticationToken(principal, null);
+        authentication.setAuthenticated(true);
+
+        UserDataScope scope = currentUserService.getDataScope(authentication);
+
+        assertThat(scope).isEqualTo(new UserDataScope(
+                "demo-session-owner",
+                List.of("demo:seed", "demo-session-owner"),
+                sessionId,
+                true));
+    }
+
+    @Test
+    void getDataScope_usesOnlyPersonalOwnerForJwtPrincipal() {
+        Authentication authentication = authenticatedJwt(jwt(Map.of(
+                "oid", "entra-object-id",
+                "sub", "subject-id")));
+
+        assertThat(currentUserService.getDataScope(authentication)).isEqualTo(
+                new UserDataScope("entra-object-id", List.of("entra-object-id"), null, false));
     }
 
     @Test
