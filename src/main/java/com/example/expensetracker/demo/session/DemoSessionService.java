@@ -123,6 +123,10 @@ public class DemoSessionService {
 
     private SessionGrant issueAccessToken(DemoSession session, String resumeToken) {
         OffsetDateTime now = sessionRepository.databaseNow();
+        if (!now.isBefore(session.getExpiresAt())) {
+            sessionRepository.deleteExpiredData();
+            throw DemoSessionException.sessionExpired();
+        }
         OffsetDateTime accessTokenExpiresAt = min(now.plusMinutes(ACCESS_TOKEN_MINUTES), session.getExpiresAt());
         String accessToken = tokenDigester.generateAccessToken();
         accessTokenRepository.save(DemoAccessToken.builder()

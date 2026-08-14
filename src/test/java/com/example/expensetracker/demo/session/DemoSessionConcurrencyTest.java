@@ -159,6 +159,28 @@ class DemoSessionConcurrencyTest {
     }
 
     @Test
+    void resumePrunesExpiredAccessTokensButRetainsUnexpiredTokensForActiveSession() {
+        DemoSessionService.SessionGrant created = facade.createOrResume(null, "198.51.100.31");
+        UUID sessionId = sessionIdForAccessToken(created.response().accessToken());
+        String expiredDigest = digester.digest("dmo_expired-token");
+        jdbc.update("""
+            INSERT INTO demo_access_token
+                (demo_session_id, token_digest, created_at, expires_at)
+            VALUES (?, ?, DATEADD(MINUTE, -16, SYSDATETIMEOFFSET()),
+                DATEADD(MINUTE, -1, SYSDATETIMEOFFSET()))
+            """, sessionId, expiredDigest);
+
+        facade.createOrResume(created.resumeToken(), "198.51.100.31");
+
+        assertThat(jdbc.queryForObject(
+            "SELECT COUNT(*) FROM demo_access_token WHERE token_digest = ?",
+            Integer.class,
+            expiredDigest
+        )).isZero();
+        assertThat(ownedRowCount("demo_access_token", sessionId)).isEqualTo(2);
+    }
+
+    @Test
     void invalidResumeCookieCreatesAReplacementSession() {
         DemoSessionService.SessionGrant created = facade.createOrResume("invalid-cookie", "203.0.113.9");
 

@@ -62,7 +62,7 @@ public class DemoSessionRepository {
         executeOwnedDelete("expense", "expires_at <= SYSDATETIMEOFFSET()");
         executeOwnedDelete("budget", "expires_at <= SYSDATETIMEOFFSET()");
         executeOwnedDelete("expense_category", "expires_at <= SYSDATETIMEOFFSET()");
-        executeOwnedDelete("demo_access_token", "expires_at <= SYSDATETIMEOFFSET()");
+        execute("DELETE FROM demo_access_token WHERE expires_at <= SYSDATETIMEOFFSET()");
         execute("DELETE FROM demo_session WHERE expires_at <= SYSDATETIMEOFFSET()");
     }
 
