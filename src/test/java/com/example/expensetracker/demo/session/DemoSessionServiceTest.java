@@ -10,6 +10,7 @@ import static org.mockito.Mockito.when;
 
 import com.example.expensetracker.demo.security.DemoTokenDigester;
 import com.example.expensetracker.demo.seed.DemoSeedRefresher;
+import com.example.expensetracker.config.DemoMetrics;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.Optional;
@@ -39,12 +40,14 @@ class DemoSessionServiceTest {
         DemoTokenDigester digester = mock(DemoTokenDigester.class);
         @SuppressWarnings("unchecked")
         ObjectProvider<DemoSeedRefresher> seedRefresherProvider = mock(ObjectProvider.class);
+        DemoMetrics metrics = mock(DemoMetrics.class);
         DemoSessionService service = new DemoSessionService(
             sessionRepository,
             accessTokenRepository,
             rateLimiter,
             digester,
-            seedRefresherProvider
+            seedRefresherProvider,
+            metrics
         );
         when(digester.digest("resume-token")).thenReturn("digest");
         when(sessionRepository.findByResumeDigest("digest")).thenReturn(Optional.of(session));

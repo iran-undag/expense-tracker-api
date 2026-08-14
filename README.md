@@ -130,6 +130,51 @@ oid -> userId -> sub
 
 The API will be available at `http://localhost:8081`.
 
+## Demo sessions
+
+Production runs one API against two SQL Server databases. Authenticated personal requests use the
+primary database; opaque demo tokens select a separate demo database. The databases must not share
+the same JDBC URL. Demo rows therefore cannot appear in personal queries even if an application
+scope check regresses.
+
+Required production variables:
+
+```env
+SPRING_DATASOURCE_URL=jdbc:sqlserver://primary-host:1433;databaseName=expensedb;encrypt=true
+SPRING_DATASOURCE_USERNAME=
+SPRING_DATASOURCE_PASSWORD=
+DEMO_DATASOURCE_URL=jdbc:sqlserver://demo-host:1433;databaseName=expensedb_demo;encrypt=true
+DEMO_DATASOURCE_USERNAME=
+DEMO_DATASOURCE_PASSWORD=
+DEMO_DATASOURCE_MAX_POOL_SIZE=3
+DEMO_TOKEN_HMAC_KEY=replace-with-at-least-32-random-bytes
+```
+
+See [.env.example](.env.example) for connection timeout/retry settings. Keep
+`DEMO_TOKEN_HMAC_KEY` server-side; changing it invalidates current demo access and resume tokens.
+
+The fixed demo limits are two concurrent sessions, 20 write/paid actions per session, and a
+six-hour session lifetime. Expired session data is deleted on the next demo login; there is no
+background cleanup requirement. When no sessions are active, the protected seed is refreshed for
+the current month: 85 expenses across six months, 16 categories, five budgets, and three recurring
+rules. Seed rows are readable but cannot be changed by demo users.
+
+Manual smoke test:
+
+```bash
+curl -i -c /tmp/expense-demo-cookie.txt -X POST http://localhost:8081/api/demo/sessions
+# Copy accessToken from the response, then:
+curl -i http://localhost:8081/api/expenses \
+  -H "Authorization: Bearer dmo_replace_me"
+curl -i -b /tmp/expense-demo-cookie.txt -X POST http://localhost:8081/api/demo/sessions
+curl -i -X DELETE http://localhost:8081/api/demo/sessions/current \
+  -H "Authorization: Bearer dmo_replace_me"
+curl -s http://localhost:8081/actuator/prometheus | grep '^demo_'
+```
+
+The complete behavior and threat-boundary rationale live in the web repository's
+[limited demo-session design](https://github.com/iran-undag/expense-tracker-web/blob/main/docs/superpowers/specs/2026-08-07-demo-session-design.md).
+
 ## Testing and coverage
 
 Run the test suite without coverage instrumentation:

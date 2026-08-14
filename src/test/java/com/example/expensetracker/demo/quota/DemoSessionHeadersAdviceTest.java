@@ -13,7 +13,9 @@ import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.http.server.ServletServerHttpRequest;
 import org.springframework.http.server.ServletServerHttpResponse;
+import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -75,6 +77,31 @@ class DemoSessionHeadersAdviceTest {
             null, null, null, null, null, new ServletServerHttpResponse(servletResponse));
 
         assertThat(servletResponse.getHeaderNames()).isEmpty();
+        verifyNoInteractions(quotaService);
+    }
+
+    @Test
+    void logoutResponseDoesNotQueryQuotaForClosedSession() {
+        DemoQuotaService quotaService = mock(DemoQuotaService.class);
+        @SuppressWarnings("unchecked")
+        ObjectProvider<DemoQuotaService> provider = mock(ObjectProvider.class);
+        MockHttpServletRequest servletRequest = new MockHttpServletRequest(
+            "DELETE", "/api/demo/sessions/current");
+        MockHttpServletResponse servletResponse = new MockHttpServletResponse();
+        OffsetDateTime expiresAt = OffsetDateTime.now();
+        SecurityContextHolder.getContext().setAuthentication(
+            UsernamePasswordAuthenticationToken.authenticated(
+                new DemoPrincipal(UUID.randomUUID(), "shared", "demo:owner", expiresAt),
+                null,
+                List.of()
+            )
+        );
+
+        new DemoSessionHeadersAdvice(provider).beforeBodyWrite(
+            null, null, null, null,
+            new ServletServerHttpRequest(servletRequest),
+            new ServletServerHttpResponse(servletResponse));
+
         verifyNoInteractions(quotaService);
     }
 }

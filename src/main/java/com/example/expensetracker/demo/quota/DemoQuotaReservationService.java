@@ -4,6 +4,7 @@ import com.example.expensetracker.demo.security.DemoPrincipal;
 import com.example.expensetracker.demo.session.DemoSession;
 import com.example.expensetracker.demo.session.DemoSessionException;
 import com.example.expensetracker.demo.session.DemoSessionRepository;
+import com.example.expensetracker.config.DemoMetrics;
 import java.time.OffsetDateTime;
 import java.util.Optional;
 import java.util.UUID;
@@ -33,7 +34,8 @@ public class DemoQuotaReservationService {
         if (!(authentication.getPrincipal() instanceof DemoPrincipal principal)) {
             return PERSONAL_RESERVATION;
         }
-        DemoSession session = quotaService.lockForMutation(principal.sessionId(), cost);
+        DemoSession session = quotaService.lockForMutation(
+            principal.sessionId(), cost, DemoMetrics.Operation.EXTERNAL);
         OffsetDateTime now = repository().databaseNow();
         UUID reservationId = UUID.randomUUID();
         repository().saveReservation(DemoQuotaReservation.builder()

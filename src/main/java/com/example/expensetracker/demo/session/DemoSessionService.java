@@ -2,6 +2,7 @@ package com.example.expensetracker.demo.session;
 
 import com.example.expensetracker.demo.security.DemoTokenDigester;
 import com.example.expensetracker.demo.seed.DemoSeedRefresher;
+import com.example.expensetracker.config.DemoMetrics;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.time.YearMonth;
@@ -30,19 +31,22 @@ public class DemoSessionService {
     private final DemoSessionRateLimiter rateLimiter;
     private final DemoTokenDigester tokenDigester;
     private final ObjectProvider<DemoSeedRefresher> seedRefresherProvider;
+    private final DemoMetrics metrics;
 
     public DemoSessionService(
         DemoSessionRepository sessionRepository,
         DemoAccessTokenRepository accessTokenRepository,
         DemoSessionRateLimiter rateLimiter,
         DemoTokenDigester tokenDigester,
-        ObjectProvider<DemoSeedRefresher> seedRefresherProvider
+        ObjectProvider<DemoSeedRefresher> seedRefresherProvider,
+        DemoMetrics metrics
     ) {
         this.sessionRepository = sessionRepository;
         this.accessTokenRepository = accessTokenRepository;
         this.rateLimiter = rateLimiter;
         this.tokenDigester = tokenDigester;
         this.seedRefresherProvider = seedRefresherProvider;
+        this.metrics = metrics;
     }
 
     @Transactional(
@@ -51,7 +55,7 @@ public class DemoSessionService {
     )
     public SessionGrant createOrResume(String rawResumeCookie, String remoteAddress) {
         Optional<DemoSession> cookieSession = findCookieSession(rawResumeCookie);
-        sessionRepository.deleteExpiredData();
+        metrics.cleanedSessions(sessionRepository.deleteExpiredData());
 
         if (cookieSession.isPresent()
             && sessionRepository.findActiveByResumeDigest(tokenDigester.digest(rawResumeCookie)).isEmpty()) {
@@ -64,6 +68,8 @@ public class DemoSessionService {
                 .orElseThrow(DemoSessionException::sessionExpired);
             sessionRepository.reclaimExpiredReservations(
                 lockedSession, sessionRepository.databaseNow());
+            metrics.sessionResumed();
+            metrics.activeSessions(sessionRepository.activeSessionCount());
             return issueAccessToken(lockedSession, rawResumeCookie);
         }
 
@@ -96,6 +102,8 @@ public class DemoSessionService {
             .resumeTokenDigest(tokenDigester.digest(resumeToken))
             .build();
         sessionRepository.save(session);
+        metrics.sessionCreated();
+        metrics.activeSessions(activeCount + 1);
 
         return issueAccessToken(session, resumeToken);
     }
@@ -109,6 +117,8 @@ public class DemoSessionService {
             sessionId,
             tokenDigester.digest("logged-out:" + UUID.randomUUID())
         );
+        metrics.sessionLoggedOut();
+        metrics.activeSessions(sessionRepository.activeSessionCount());
     }
 
     private Optional<DemoSession> findCookieSession(String rawResumeCookie) {
@@ -128,7 +138,7 @@ public class DemoSessionService {
     private SessionGrant issueAccessToken(DemoSession session, String resumeToken) {
         OffsetDateTime now = sessionRepository.databaseNow();
         if (!now.isBefore(session.getExpiresAt())) {
-            sessionRepository.deleteExpiredData();
+            metrics.cleanedSessions(sessionRepository.deleteExpiredData());
             throw DemoSessionException.sessionExpired();
         }
         OffsetDateTime accessTokenExpiresAt = min(now.plusMinutes(ACCESS_TOKEN_MINUTES), session.getExpiresAt());

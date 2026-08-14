@@ -22,6 +22,9 @@ jobs:
       - name: Checkout to the branch
         uses: actions/checkout@v4
 
+      - name: Run API tests
+        run: ./mvnw clean test
+
       - name: Azure Login
         uses: azure/login@v2
         with:

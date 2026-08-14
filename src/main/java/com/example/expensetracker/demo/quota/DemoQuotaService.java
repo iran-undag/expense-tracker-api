@@ -4,6 +4,7 @@ import com.example.expensetracker.demo.session.DemoSession;
 import com.example.expensetracker.demo.session.DemoSessionException;
 import com.example.expensetracker.demo.session.DemoSessionRepository;
 import com.example.expensetracker.demo.session.DemoSessionService;
+import com.example.expensetracker.config.DemoMetrics;
 import java.time.OffsetDateTime;
 import java.util.Optional;
 import java.util.UUID;
@@ -16,17 +17,27 @@ public class DemoQuotaService {
     public static final int ACTION_LIMIT = DemoSessionService.ACTION_LIMIT;
 
     private final Optional<DemoSessionRepository> sessionRepository;
+    private final DemoMetrics metrics;
 
-    public DemoQuotaService(Optional<DemoSessionRepository> sessionRepository) {
+    public DemoQuotaService(
+        Optional<DemoSessionRepository> sessionRepository,
+        DemoMetrics metrics
+    ) {
         this.sessionRepository = sessionRepository;
+        this.metrics = metrics;
     }
 
     DemoSession lockForMutation(UUID sessionId, int cost) {
+        return lockForMutation(sessionId, cost, DemoMetrics.Operation.MUTATION);
+    }
+
+    DemoSession lockForMutation(UUID sessionId, int cost, DemoMetrics.Operation operation) {
         validateCost(cost);
         DemoSession session = repository().lockActiveSession(sessionId)
             .orElseThrow(DemoSessionException::sessionExpired);
         repository().reclaimExpiredReservations(session, repository().databaseNow());
         if (totalActions(session) + cost > ACTION_LIMIT) {
+            metrics.quotaRejected(operation);
             throw DemoSessionException.quotaExhausted();
         }
         return session;
@@ -42,7 +53,7 @@ public class DemoQuotaService {
         }
         DemoSession session;
         try {
-            session = lockForMutation(sessionId, cost);
+            session = lockForMutation(sessionId, cost, DemoMetrics.Operation.RECURRING);
         } catch (DemoSessionException exception) {
             if ("DEMO_QUOTA_EXHAUSTED".equals(exception.code())) {
                 return false;

@@ -39,7 +39,7 @@ public class DemoSessionRepository {
             """, resumeDigest);
     }
 
-    public void deleteExpiredData() {
+    public int deleteExpiredData() {
         execute("""
             DELETE FROM chat_identity_mapping
             WHERE demo_session_id IN (
@@ -64,7 +64,9 @@ public class DemoSessionRepository {
         executeOwnedDelete("budget", "expires_at <= SYSDATETIMEOFFSET()");
         executeOwnedDelete("expense_category", "expires_at <= SYSDATETIMEOFFSET()");
         execute("DELETE FROM demo_access_token WHERE expires_at <= SYSDATETIMEOFFSET()");
-        execute("DELETE FROM demo_session WHERE expires_at <= SYSDATETIMEOFFSET()");
+        return entityManager.createNativeQuery(
+            "DELETE FROM demo_session WHERE expires_at <= SYSDATETIMEOFFSET()")
+            .executeUpdate();
     }
 
     public void ensureAdmissionRow(LocalDate anchorMonth, OffsetDateTime now) {

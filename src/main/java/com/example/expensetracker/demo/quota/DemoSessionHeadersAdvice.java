@@ -3,6 +3,7 @@ package com.example.expensetracker.demo.quota;
 import com.example.expensetracker.demo.security.DemoPrincipal;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.core.MethodParameter;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.http.converter.HttpMessageConverter;
 import org.springframework.http.server.ServerHttpRequest;
@@ -45,7 +46,8 @@ public class DemoSessionHeadersAdvice implements ResponseBodyAdvice<Object> {
     ) {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (!(authentication != null && authentication.getPrincipal() instanceof DemoPrincipal demo)
-            || !isSuccessful(response)) {
+            || !isSuccessful(response)
+            || isLogout(request)) {
             return body;
         }
 
@@ -59,5 +61,11 @@ public class DemoSessionHeadersAdvice implements ResponseBodyAdvice<Object> {
     private boolean isSuccessful(ServerHttpResponse response) {
         return !(response instanceof ServletServerHttpResponse servletResponse)
             || servletResponse.getServletResponse().getStatus() < 400;
+    }
+
+    private boolean isLogout(ServerHttpRequest request) {
+        return request != null
+            && HttpMethod.DELETE.equals(request.getMethod())
+            && "/api/demo/sessions/current".equals(request.getURI().getPath());
     }
 }
