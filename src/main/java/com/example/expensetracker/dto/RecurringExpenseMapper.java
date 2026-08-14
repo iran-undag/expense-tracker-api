@@ -30,6 +30,7 @@ public final class RecurringExpenseMapper {
             .nextRunDate(recurringExpense.getNextRunDate())
             .active(recurringExpense.isActive())
             .userid(recurringExpense.getUserid())
+            .protectedSeed(recurringExpense.isDemoSeed())
             .build();
     }
 }

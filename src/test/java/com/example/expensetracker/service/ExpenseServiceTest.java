@@ -51,7 +51,7 @@ class ExpenseServiceTest {
     void getExpenseById_shouldReturnExpense() {
         Expense expense = new Expense();
         expense.setId(1L);
-        when(expenseRepository.findByIdAndUserid(1L, "testuser")).thenReturn(
+        when(expenseRepository.findByIdAndUseridIn(1L, List.of("testuser"))).thenReturn(
             Optional.of(expense)
         );
 
@@ -92,7 +92,7 @@ class ExpenseServiceTest {
         e2.setAmount(new BigDecimal("20.00"));
 
         when(
-            expenseRepository.findByUseridAndDateBetween("testuser", start, end)
+            expenseRepository.findByUseridInAndDateBetween(List.of("testuser"), start, end)
         ).thenReturn(List.of(e1, e2));
 
         BigDecimal total = expenseService.getTotalExpensesForMonth(
@@ -111,8 +111,8 @@ class ExpenseServiceTest {
         PageRequest pageable = PageRequest.of(0, 10);
         Expense expense = new Expense();
         when(
-            expenseRepository.findByUseridAndDateBetween(
-                "testuser",
+            expenseRepository.findByUseridInAndDateBetween(
+                List.of("testuser"),
                 start,
                 end,
                 pageable
@@ -127,8 +127,8 @@ class ExpenseServiceTest {
         );
 
         assertThat(result.getContent()).containsExactly(expense);
-        verify(expenseRepository).findByUseridAndDateBetween(
-            "testuser",
+        verify(expenseRepository).findByUseridInAndDateBetween(
+            List.of("testuser"),
             start,
             end,
             pageable

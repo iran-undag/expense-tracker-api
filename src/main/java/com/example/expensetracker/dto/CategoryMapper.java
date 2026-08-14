@@ -24,6 +24,7 @@ public final class CategoryMapper {
             .systemDefault(category.isSystemDefault())
             .active(category.isActive())
             .userid(category.getUserid())
+            .protectedSeed(category.isDemoSeed())
             .build();
     }
 }

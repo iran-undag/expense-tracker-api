@@ -6,6 +6,7 @@ import com.example.expensetracker.dto.SpendingPeriodDto;
 import com.example.expensetracker.dto.SpendingTrendDto;
 import com.example.expensetracker.model.Expense;
 import com.example.expensetracker.repository.ExpenseRepository;
+import com.example.expensetracker.security.UserDataScope;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.DayOfWeek;
@@ -31,9 +32,9 @@ public class ReportServiceImpl implements ReportService {
     private final ExpenseRepository expenseRepository;
 
     @Override
-    public MonthlySummaryDto getMonthlySummary(String userId, int year, int month) {
+    public MonthlySummaryDto getMonthlySummary(UserDataScope scope, int year, int month) {
         YearMonth yearMonth = validatedYearMonth(year, month);
-        List<Expense> expenses = expensesForRange(userId, yearMonth.atDay(1), yearMonth.atEndOfMonth());
+        List<Expense> expenses = expensesForRange(scope, yearMonth.atDay(1), yearMonth.atEndOfMonth());
         BigDecimal total = total(expenses);
         long count = expenses.size();
         return MonthlySummaryDto.builder()
@@ -46,7 +47,7 @@ public class ReportServiceImpl implements ReportService {
     }
 
     @Override
-    public List<CategoryBreakdownDto> getCategoryBreakdown(String userId, LocalDate fromDate, LocalDate toDate) {
+    public List<CategoryBreakdownDto> getCategoryBreakdown(UserDataScope scope, LocalDate fromDate, LocalDate toDate) {
         if (fromDate == null || toDate == null) {
             throw new IllegalArgumentException("fromDate and toDate are required");
         }
@@ -54,7 +55,7 @@ public class ReportServiceImpl implements ReportService {
             throw new IllegalArgumentException("fromDate must be on or before toDate");
         }
 
-        List<Expense> expenses = expensesForRange(userId, fromDate, toDate);
+        List<Expense> expenses = expensesForRange(scope, fromDate, toDate);
         BigDecimal total = total(expenses);
         Map<String, BigDecimal> totalsByCategory = new LinkedHashMap<>();
         for (Expense expense : expenses) {
@@ -73,14 +74,14 @@ public class ReportServiceImpl implements ReportService {
     }
 
     @Override
-    public List<SpendingTrendDto> getSpendingTrend(String userId, int endYear, int endMonth, int months, String category) {
+    public List<SpendingTrendDto> getSpendingTrend(UserDataScope scope, int endYear, int endMonth, int months, String category) {
         YearMonth end = validatedYearMonth(endYear, endMonth);
         if (months < 1 || months > MAX_TREND_MONTHS) {
             throw new IllegalArgumentException("months must be between 1 and 24");
         }
 
         YearMonth start = end.minusMonths(months - 1L);
-        List<Expense> expenses = expensesForRange(userId, start.atDay(1), end.atEndOfMonth());
+        List<Expense> expenses = expensesForRange(scope, start.atDay(1), end.atEndOfMonth());
         Map<YearMonth, BigDecimal> totalsByMonth = new LinkedHashMap<>();
         for (int index = 0; index < months; index += 1) {
             totalsByMonth.put(start.plusMonths(index), BigDecimal.ZERO);
@@ -109,7 +110,7 @@ public class ReportServiceImpl implements ReportService {
 
     @Override
     public List<SpendingPeriodDto> getSpendingByPeriod(
-        String userId,
+        UserDataScope scope,
         LocalDate fromDate,
         LocalDate toDate,
         SpendingGranularity granularity,
@@ -122,7 +123,7 @@ public class ReportServiceImpl implements ReportService {
             throw new IllegalArgumentException("fromDate must be on or before toDate");
         }
 
-        List<Expense> expenses = expensesForRange(userId, fromDate, toDate).stream()
+        List<Expense> expenses = expensesForRange(scope, fromDate, toDate).stream()
             .filter(expense -> !hasText(category)
                 || normalizeCategory(expense.getCategory()).equalsIgnoreCase(category.trim()))
             .toList();
@@ -145,8 +146,8 @@ public class ReportServiceImpl implements ReportService {
         return periods;
     }
 
-    private List<Expense> expensesForRange(String userId, LocalDate fromDate, LocalDate toDate) {
-        return expenseRepository.findByUseridAndDateBetween(userId, fromDate, toDate);
+    private List<Expense> expensesForRange(UserDataScope scope, LocalDate fromDate, LocalDate toDate) {
+        return expenseRepository.findByUseridInAndDateBetween(scope.readableOwnerIds(), fromDate, toDate);
     }
 
     private YearMonth validatedYearMonth(int year, int month) {

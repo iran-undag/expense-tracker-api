@@ -2,6 +2,7 @@ package com.example.expensetracker.service;
 
 import com.example.expensetracker.model.Expense;
 import com.example.expensetracker.model.ExpenseCategory;
+import com.example.expensetracker.security.UserDataScope;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -22,7 +23,11 @@ public class ReceiptCategoryNormalizer {
     private final CategoryService categoryService;
 
     public List<String> getActiveCategoryNames(String userId) {
-        return categoryService.getCategories(userId, false).stream()
+        return getActiveCategoryNames(UserDataScope.personal(userId));
+    }
+
+    public List<String> getActiveCategoryNames(UserDataScope scope) {
+        return categoryService.getCategories(scope, false).stream()
             .map(ExpenseCategory::getName)
             .toList();
     }

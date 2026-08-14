@@ -7,6 +7,7 @@ import com.example.expensetracker.dto.PageResponseDto;
 import com.example.expensetracker.exception.InvalidSortPropertyException;
 import com.example.expensetracker.model.Expense;
 import com.example.expensetracker.security.CurrentUserService;
+import com.example.expensetracker.security.UserDataScope;
 import com.example.expensetracker.service.ExpenseFilterCriteria;
 import com.example.expensetracker.service.ExpenseService;
 import com.example.expensetracker.service.ReceiptProcessor;
@@ -72,10 +73,9 @@ public class ExpenseController {
         Authentication authentication
     ) {
         log.info("Received request to create expense: {}", request);
-        String userId = currentUserService.getUserId(authentication);
+        UserDataScope scope = currentUserService.getDataScope(authentication);
         Expense expenseEntity = ExpenseMapper.toEntity(request);
-        expenseEntity.setUserid(userId);
-        Expense savedExpense = expenseService.saveExpense(expenseEntity);
+        Expense savedExpense = expenseService.saveExpense(scope, expenseEntity);
         return ResponseEntity.ok(ExpenseMapper.toDto(savedExpense));
     }
 
@@ -103,12 +103,12 @@ public class ExpenseController {
         Authentication authentication
     ) {
         validateSortProperties(pageable);
-        String userId = currentUserService.getUserId(authentication);
-        recurringExpenseService.generateDueExpenses(userId, LocalDate.now());
+        UserDataScope scope = currentUserService.getDataScope(authentication);
+        recurringExpenseService.generateDueExpenses(scope, LocalDate.now());
         return ResponseEntity.ok(
             PageResponseDto.fromPage(
                 expenseService.getAllExpenses(
-                    userId,
+                    scope,
                     new ExpenseFilterCriteria(
                         fromDate,
                         toDate,
@@ -135,10 +135,10 @@ public class ExpenseController {
         @PathVariable Long id,
         Authentication authentication
     ) {
-        String userId = currentUserService.getUserId(authentication);
-        recurringExpenseService.generateDueExpenses(userId, LocalDate.now());
+        UserDataScope scope = currentUserService.getDataScope(authentication);
+        recurringExpenseService.generateDueExpenses(scope, LocalDate.now());
         return expenseService
-            .getExpenseById(id, userId)
+            .getExpenseById(id, scope)
             .map(ExpenseMapper::toDto)
             .map(ResponseEntity::ok)
             .orElse(ResponseEntity.notFound().build());
@@ -155,10 +155,10 @@ public class ExpenseController {
         Authentication authentication
     ) {
         try {
-            String userId = currentUserService.getUserId(authentication);
+            UserDataScope scope = currentUserService.getDataScope(authentication);
             Expense updatedExpense = expenseService.updateExpense(
                 id,
-                userId,
+                scope,
                 ExpenseMapper.toEntity(request)
             );
             return ResponseEntity.ok(ExpenseMapper.toDto(updatedExpense));
@@ -177,8 +177,8 @@ public class ExpenseController {
         Authentication authentication
     ) {
         try {
-            String userId = currentUserService.getUserId(authentication);
-            expenseService.deleteExpense(id, userId);
+            UserDataScope scope = currentUserService.getDataScope(authentication);
+            expenseService.deleteExpense(id, scope);
             return ResponseEntity.noContent().build();
         } catch (RuntimeException e) {
             return ResponseEntity.notFound().build();
@@ -192,11 +192,11 @@ public class ExpenseController {
         ) LocalDate date,
         Authentication authentication
     ) {
-        String userId = currentUserService.getUserId(authentication);
-        recurringExpenseService.generateDueExpenses(userId, LocalDate.now());
+        UserDataScope scope = currentUserService.getDataScope(authentication);
+        recurringExpenseService.generateDueExpenses(scope, LocalDate.now());
         return ResponseEntity.ok(
             ExpenseMapper.toDtoList(
-                expenseService.getExpensesByDate(date, userId)
+                expenseService.getExpensesByDate(date, scope)
             )
         );
     }
@@ -207,10 +207,10 @@ public class ExpenseController {
         @PathVariable int month,
         Authentication authentication
     ) {
-        String userId = currentUserService.getUserId(authentication);
-        recurringExpenseService.generateDueExpenses(userId, LocalDate.now());
+        UserDataScope scope = currentUserService.getDataScope(authentication);
+        recurringExpenseService.generateDueExpenses(scope, LocalDate.now());
         return ResponseEntity.ok(
-            expenseService.getTotalExpensesForMonth(year, month, userId)
+            expenseService.getTotalExpensesForMonth(year, month, scope)
         );
     }
 
@@ -227,14 +227,14 @@ public class ExpenseController {
         ) Pageable pageable,
         Authentication authentication
     ) {
-        String userId = currentUserService.getUserId(authentication);
-        recurringExpenseService.generateDueExpenses(userId, LocalDate.now());
+        UserDataScope scope = currentUserService.getDataScope(authentication);
+        recurringExpenseService.generateDueExpenses(scope, LocalDate.now());
         return ResponseEntity.ok(
             PageResponseDto.fromPage(
                 expenseService.getExpensesForMonth(
                     year,
                     month,
-                    userId,
+                    scope,
                     pageable
                 ),
                 ExpenseMapper::toDto
@@ -261,10 +261,12 @@ public class ExpenseController {
             "Received request to process receipt: {}",
             image.getOriginalFilename()
         );
-        String userId = currentUserService.getUserId(authentication);
-        List<String> activeCategoryNames = receiptCategoryNormalizer.getActiveCategoryNames(userId);
+        UserDataScope scope = currentUserService.getDataScope(authentication);
+        List<String> activeCategoryNames = receiptCategoryNormalizer.getActiveCategoryNames(scope);
         Expense extractedExpense = receiptProcessor.processReceipt(image, activeCategoryNames);
-        extractedExpense.setUserid(userId);
+        extractedExpense.setUserid(scope.ownerId());
+        extractedExpense.setDemoSessionId(scope.demoSessionId());
+        extractedExpense.setDemoSeed(false);
         extractedExpense.setCategory(receiptCategoryNormalizer.normalize(extractedExpense, activeCategoryNames));
         log.info("Extracted expense details: {}", extractedExpense);
         return ResponseEntity.ok(ExpenseMapper.toDto(extractedExpense));

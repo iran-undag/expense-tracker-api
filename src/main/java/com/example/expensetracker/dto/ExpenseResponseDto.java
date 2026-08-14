@@ -35,6 +35,8 @@ public class ExpenseResponseDto {
     @Schema(description = "User identifier associated with the expense", example = "user-123")
     private String userid;
 
+    private boolean protectedSeed;
+
     public static ExpenseResponseDto fromEntity(Expense expense) {
         if (expense == null) {
             return null;
@@ -46,6 +48,7 @@ public class ExpenseResponseDto {
                 .date(expense.getDate())
                 .category(expense.getCategory())
                 .userid(expense.getUserid())
+                .protectedSeed(expense.isDemoSeed())
                 .build();
     }
 }

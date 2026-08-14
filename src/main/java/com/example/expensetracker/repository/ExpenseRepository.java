@@ -32,6 +32,7 @@ public interface ExpenseRepository extends JpaRepository<Expense, Long>, JpaSpec
     Page<Expense> findByUseridInAndDateBetween(
         List<String> userids, LocalDate startDate, LocalDate endDate, Pageable pageable);
     Optional<Expense> findByIdAndUserid(Long id, String userid);
+    Optional<Expense> findByIdAndUseridIn(Long id, List<String> userids);
 
     @Query("""
         select new com.example.expensetracker.dto.CategoryTotalDto(

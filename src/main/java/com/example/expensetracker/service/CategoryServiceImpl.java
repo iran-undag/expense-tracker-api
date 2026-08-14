@@ -2,7 +2,11 @@ package com.example.expensetracker.service;
 
 import com.example.expensetracker.model.ExpenseCategory;
 import com.example.expensetracker.repository.ExpenseCategoryRepository;
+import com.example.expensetracker.security.UserDataScope;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -54,18 +58,27 @@ public class CategoryServiceImpl implements CategoryService {
 
     @Override
     @Transactional
-    public List<ExpenseCategory> getCategories(String userId, boolean includeInactive) {
-        ensureDefaultCategories(userId);
-        return includeInactive
-            ? categoryRepository.findByUseridOrderByNameAsc(userId)
-            : categoryRepository.findByUseridAndActiveTrueOrderByNameAsc(userId);
+    public List<ExpenseCategory> getCategories(UserDataScope scope, boolean includeInactive) {
+        if (!scope.demo()) {
+            ensureDefaultCategories(scope.ownerId());
+        }
+        List<ExpenseCategory> rows = categoryRepository.findByUseridInOrderByNameAsc(scope.readableOwnerIds());
+        Map<String, ExpenseCategory> effective = new LinkedHashMap<>();
+        rows.stream().filter(ExpenseCategory::isDemoSeed)
+            .forEach(category -> effective.put(normalizedKey(category.getName()), category));
+        rows.stream().filter(category -> !category.isDemoSeed())
+            .forEach(category -> effective.put(normalizedKey(category.getName()), category));
+        return effective.values().stream()
+            .filter(category -> includeInactive || category.isActive())
+            .sorted(Comparator.comparing(ExpenseCategory::getName, String.CASE_INSENSITIVE_ORDER))
+            .toList();
     }
 
     @Override
     @Transactional
-    public ExpenseCategory createCategory(String userId, ExpenseCategory category) {
+    public ExpenseCategory createCategory(UserDataScope scope, ExpenseCategory category) {
         String name = normalizeName(category.getName());
-        return categoryRepository.findByUseridAndNameIgnoreCase(userId, name)
+        return categoryRepository.findByUseridAndNameIgnoreCase(scope.ownerId(), name)
             .map(existing -> {
                 if (existing.isActive()) {
                     throw new IllegalArgumentException("Category already exists");
@@ -76,24 +89,26 @@ public class CategoryServiceImpl implements CategoryService {
                 return categoryRepository.save(existing);
             })
             .orElseGet(() -> {
-                category.setUserid(userId);
+                category.setUserid(scope.ownerId());
                 category.setName(name);
                 category.setColor(normalizeOptional(category.getColor()));
                 category.setIcon(normalizeOptional(category.getIcon()));
                 category.setSystemDefault(false);
                 category.setActive(true);
+                category.setDemoSessionId(scope.demoSessionId());
+                category.setDemoSeed(false);
                 return categoryRepository.save(category);
             });
     }
 
     @Override
     @Transactional
-    public ExpenseCategory updateCategory(Long id, String userId, ExpenseCategory category) {
-        ExpenseCategory existing = categoryRepository.findByIdAndUserid(id, userId)
+    public ExpenseCategory updateCategory(Long id, UserDataScope scope, ExpenseCategory category) {
+        ExpenseCategory existing = categoryRepository.findByIdAndUserid(id, scope.ownerId())
             .orElseThrow(() -> new RuntimeException("Category not found or you do not have permission to update it"));
 
         String name = normalizeName(category.getName());
-        categoryRepository.findByUseridAndNameIgnoreCase(userId, name)
+        categoryRepository.findByUseridAndNameIgnoreCase(scope.ownerId(), name)
             .filter(match -> !match.getId().equals(id))
             .ifPresent(match -> {
                 throw new IllegalArgumentException("Category already exists");
@@ -108,8 +123,8 @@ public class CategoryServiceImpl implements CategoryService {
 
     @Override
     @Transactional
-    public void deleteCategory(Long id, String userId) {
-        ExpenseCategory existing = categoryRepository.findByIdAndUserid(id, userId)
+    public void deleteCategory(Long id, UserDataScope scope) {
+        ExpenseCategory existing = categoryRepository.findByIdAndUserid(id, scope.ownerId())
             .orElseThrow(() -> new RuntimeException("Category not found or you do not have permission to delete it"));
         existing.setActive(false);
         categoryRepository.save(existing);
@@ -137,6 +152,10 @@ public class CategoryServiceImpl implements CategoryService {
             throw new IllegalArgumentException("Category name is required");
         }
         return name.trim();
+    }
+
+    private String normalizedKey(String name) {
+        return normalizeName(name).toLowerCase();
     }
 
     private String normalizeOptional(String value) {

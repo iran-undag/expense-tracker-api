@@ -2,6 +2,7 @@ package com.example.expensetracker.service;
 
 import com.example.expensetracker.model.Expense;
 import com.example.expensetracker.repository.ExpenseRepository;
+import com.example.expensetracker.security.UserDataScope;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -25,8 +26,11 @@ public class ExpenseServiceImpl implements ExpenseService {
 
     @Override
     @Transactional
-    public Expense saveExpense(Expense expense) {
+    public Expense saveExpense(UserDataScope scope, Expense expense) {
         log.info("Connecting to database to save expense...");
+        expense.setUserid(scope.ownerId());
+        expense.setDemoSessionId(scope.demoSessionId());
+        expense.setDemoSeed(false);
         if (expense.getDate() == null) {
             expense.setDate(LocalDate.now());
         }
@@ -36,22 +40,22 @@ public class ExpenseServiceImpl implements ExpenseService {
     }
 
     @Override
-    public Optional<Expense> getExpenseById(Long id, String userId) {
-        return expenseRepository.findByIdAndUserid(id, userId);
+    public Optional<Expense> getExpenseById(Long id, UserDataScope scope) {
+        return expenseRepository.findByIdAndUseridIn(id, scope.readableOwnerIds());
     }
 
     @Override
-    public List<Expense> getExpensesByDate(LocalDate date, String userId) {
-        return expenseRepository.findByUseridAndDate(userId, date);
+    public List<Expense> getExpensesByDate(LocalDate date, UserDataScope scope) {
+        return expenseRepository.findByUseridInAndDate(scope.readableOwnerIds(), date);
     }
 
     @Override
-    public BigDecimal getTotalExpensesForMonth(int year, int month, String userId) {
-        log.info("Calculating total expenses for month: {}/{} for user: {}", month, year, userId);
+    public BigDecimal getTotalExpensesForMonth(int year, int month, UserDataScope scope) {
+        log.info("Calculating total expenses for month: {}/{} for owner: {}", month, year, scope.ownerId());
         LocalDate startDate = LocalDate.of(year, month, 1);
         LocalDate endDate = startDate.withDayOfMonth(startDate.lengthOfMonth());
         
-        BigDecimal total = expenseRepository.findByUseridAndDateBetween(userId, startDate, endDate)
+        BigDecimal total = expenseRepository.findByUseridInAndDateBetween(scope.readableOwnerIds(), startDate, endDate)
                 .stream()
                 .map(Expense::getAmount)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
@@ -61,22 +65,22 @@ public class ExpenseServiceImpl implements ExpenseService {
     }
 
     @Override
-    public Page<Expense> getAllExpenses(String userId, ExpenseFilterCriteria filters, Pageable pageable) {
-        return expenseRepository.findAll(matchesFilters(userId, filters), pageable);
+    public Page<Expense> getAllExpenses(UserDataScope scope, ExpenseFilterCriteria filters, Pageable pageable) {
+        return expenseRepository.findAll(matchesFilters(scope, filters), pageable);
     }
 
     @Override
-    public Page<Expense> getExpensesForMonth(int year, int month, String userId, Pageable pageable) {
+    public Page<Expense> getExpensesForMonth(int year, int month, UserDataScope scope, Pageable pageable) {
         LocalDate startDate = LocalDate.of(year, month, 1);
         LocalDate endDate = startDate.withDayOfMonth(startDate.lengthOfMonth());
-        return expenseRepository.findByUseridAndDateBetween(userId, startDate, endDate, pageable);
+        return expenseRepository.findByUseridInAndDateBetween(scope.readableOwnerIds(), startDate, endDate, pageable);
     }
 
     @Override
     @Transactional
-    public Expense updateExpense(Long id, String userId, Expense updatedExpense) {
-        log.info("Updating expense {} for user {}", id, userId);
-        return expenseRepository.findByIdAndUserid(id, userId).map(existing -> {
+    public Expense updateExpense(Long id, UserDataScope scope, Expense updatedExpense) {
+        log.info("Updating expense {} for owner {}", id, scope.ownerId());
+        return expenseRepository.findByIdAndUserid(id, scope.ownerId()).map(existing -> {
             existing.setDescription(updatedExpense.getDescription());
             existing.setAmount(updatedExpense.getAmount());
             existing.setDate(updatedExpense.getDate());
@@ -87,17 +91,17 @@ public class ExpenseServiceImpl implements ExpenseService {
 
     @Override
     @Transactional
-    public void deleteExpense(Long id, String userId) {
-        log.info("Deleting expense {} for user {}", id, userId);
-        Expense existing = expenseRepository.findByIdAndUserid(id, userId)
+    public void deleteExpense(Long id, UserDataScope scope) {
+        log.info("Deleting expense {} for owner {}", id, scope.ownerId());
+        Expense existing = expenseRepository.findByIdAndUserid(id, scope.ownerId())
                 .orElseThrow(() -> new RuntimeException("Expense not found or you do not have permission to delete it"));
         expenseRepository.delete(existing);
     }
 
-    private Specification<Expense> matchesFilters(String userId, ExpenseFilterCriteria filters) {
+    private Specification<Expense> matchesFilters(UserDataScope scope, ExpenseFilterCriteria filters) {
         return (root, query, criteriaBuilder) -> {
             var predicates = new java.util.ArrayList<jakarta.persistence.criteria.Predicate>();
-            predicates.add(criteriaBuilder.equal(root.get("userid"), userId));
+            predicates.add(root.get("userid").in(scope.readableOwnerIds()));
 
             if (filters == null) {
                 return criteriaBuilder.and(predicates.toArray(jakarta.persistence.criteria.Predicate[]::new));

@@ -23,6 +23,7 @@ public final class BudgetMapper {
             .month(budget.getBudgetMonth())
             .amount(budget.getAmount())
             .userid(budget.getUserid())
+            .protectedSeed(budget.isDemoSeed())
             .build();
     }
 }

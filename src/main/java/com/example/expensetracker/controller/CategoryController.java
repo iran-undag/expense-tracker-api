@@ -5,6 +5,7 @@ import com.example.expensetracker.dto.CategoryRequestDto;
 import com.example.expensetracker.dto.CategoryResponseDto;
 import com.example.expensetracker.model.ExpenseCategory;
 import com.example.expensetracker.security.CurrentUserService;
+import com.example.expensetracker.security.UserDataScope;
 import com.example.expensetracker.service.CategoryService;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -34,8 +35,8 @@ public class CategoryController {
         @RequestParam(defaultValue = "false") boolean includeInactive,
         Authentication authentication
     ) {
-        String userId = currentUserService.getUserId(authentication);
-        return ResponseEntity.ok(categoryService.getCategories(userId, includeInactive).stream()
+        UserDataScope scope = currentUserService.getDataScope(authentication);
+        return ResponseEntity.ok(categoryService.getCategories(scope, includeInactive).stream()
             .map(CategoryMapper::toDto)
             .toList());
     }
@@ -45,8 +46,8 @@ public class CategoryController {
         @Valid @RequestBody CategoryRequestDto request,
         Authentication authentication
     ) {
-        String userId = currentUserService.getUserId(authentication);
-        ExpenseCategory saved = categoryService.createCategory(userId, CategoryMapper.toEntity(request));
+        UserDataScope scope = currentUserService.getDataScope(authentication);
+        ExpenseCategory saved = categoryService.createCategory(scope, CategoryMapper.toEntity(request));
         return ResponseEntity.ok(CategoryMapper.toDto(saved));
     }
 
@@ -57,8 +58,8 @@ public class CategoryController {
         Authentication authentication
     ) {
         try {
-            String userId = currentUserService.getUserId(authentication);
-            ExpenseCategory updated = categoryService.updateCategory(id, userId, CategoryMapper.toEntity(request));
+            UserDataScope scope = currentUserService.getDataScope(authentication);
+            ExpenseCategory updated = categoryService.updateCategory(id, scope, CategoryMapper.toEntity(request));
             return ResponseEntity.ok(CategoryMapper.toDto(updated));
         } catch (IllegalArgumentException e) {
             throw e;
@@ -73,8 +74,8 @@ public class CategoryController {
         Authentication authentication
     ) {
         try {
-            String userId = currentUserService.getUserId(authentication);
-            categoryService.deleteCategory(id, userId);
+            UserDataScope scope = currentUserService.getDataScope(authentication);
+            categoryService.deleteCategory(id, scope);
             return ResponseEntity.noContent().build();
         } catch (RuntimeException e) {
             return ResponseEntity.notFound().build();

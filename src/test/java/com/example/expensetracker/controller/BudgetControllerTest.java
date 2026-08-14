@@ -17,6 +17,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.example.expensetracker.model.Budget;
 import com.example.expensetracker.security.CurrentUserService;
 import com.example.expensetracker.security.JwtTokenProvider;
+import com.example.expensetracker.security.UserDataScope;
 import com.example.expensetracker.service.BudgetService;
 import com.example.expensetracker.service.RecurringExpenseService;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -37,6 +38,8 @@ import org.springframework.test.web.servlet.MockMvc;
 @AutoConfigureMockMvc(addFilters = false)
 @ActiveProfiles("dev")
 class BudgetControllerTest {
+
+    private static final UserDataScope SCOPE = UserDataScope.personal("testuser");
 
     @Autowired
     private MockMvc mockMvc;
@@ -61,8 +64,8 @@ class BudgetControllerTest {
         Authentication authentication = new TestingAuthenticationToken("testuser", null);
         Budget budget = budget("testuser", "Food", "500.00", 2026, 6);
         budget.setId(1L);
-        when(currentUserService.getUserId(authentication)).thenReturn("testuser");
-        when(budgetService.getBudgets("testuser", 2026, 6)).thenReturn(List.of(budget));
+        when(currentUserService.getDataScope(authentication)).thenReturn(SCOPE);
+        when(budgetService.getBudgets(SCOPE, 2026, 6)).thenReturn(List.of(budget));
 
         mockMvc.perform(get("/api/budgets")
                 .param("year", "2026")
@@ -80,8 +83,8 @@ class BudgetControllerTest {
         Authentication authentication = new TestingAuthenticationToken("testuser", null);
         Budget saved = budget("testuser", "Food", "500.00", 2026, 6);
         saved.setId(1L);
-        when(currentUserService.getUserId(authentication)).thenReturn("testuser");
-        when(budgetService.saveBudget(eq("testuser"), any(Budget.class))).thenReturn(saved);
+        when(currentUserService.getDataScope(authentication)).thenReturn(SCOPE);
+        when(budgetService.saveBudget(eq(SCOPE), any(Budget.class))).thenReturn(saved);
 
         mockMvc.perform(post("/api/budgets")
                 .principal(authentication)
@@ -92,7 +95,7 @@ class BudgetControllerTest {
             .andExpect(jsonPath("$.userid").value("testuser"));
 
         var budgetCaptor = forClass(Budget.class);
-        verify(budgetService).saveBudget(eq("testuser"), budgetCaptor.capture());
+        verify(budgetService).saveBudget(eq(SCOPE), budgetCaptor.capture());
         assertThat(budgetCaptor.getValue().getUserid()).isNull();
         assertThat(budgetCaptor.getValue().getCategory()).isEqualTo("Food");
     }
@@ -100,8 +103,8 @@ class BudgetControllerTest {
     @Test
     void updateBudget_shouldReturn404WhenMissing() throws Exception {
         Authentication authentication = new TestingAuthenticationToken("testuser", null);
-        when(currentUserService.getUserId(authentication)).thenReturn("testuser");
-        when(budgetService.updateBudget(eq(1L), eq("testuser"), any(Budget.class)))
+        when(currentUserService.getDataScope(authentication)).thenReturn(SCOPE);
+        when(budgetService.updateBudget(eq(1L), eq(SCOPE), any(Budget.class)))
             .thenThrow(new RuntimeException("missing"));
 
         mockMvc.perform(put("/api/budgets/1")
@@ -114,12 +117,12 @@ class BudgetControllerTest {
     @Test
     void deleteBudget_shouldReturnNoContent() throws Exception {
         Authentication authentication = new TestingAuthenticationToken("testuser", null);
-        when(currentUserService.getUserId(authentication)).thenReturn("testuser");
+        when(currentUserService.getDataScope(authentication)).thenReturn(SCOPE);
 
         mockMvc.perform(delete("/api/budgets/1").principal(authentication))
             .andExpect(status().isNoContent());
 
-        verify(budgetService).deleteBudget(1L, "testuser");
+        verify(budgetService).deleteBudget(1L, SCOPE);
     }
 
     @Test

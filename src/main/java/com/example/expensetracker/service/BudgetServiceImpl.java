@@ -5,14 +5,17 @@ import com.example.expensetracker.dto.CategoryTotalDto;
 import com.example.expensetracker.model.Budget;
 import com.example.expensetracker.repository.BudgetRepository;
 import com.example.expensetracker.repository.ExpenseRepository;
+import com.example.expensetracker.security.UserDataScope;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
-import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.TreeMap;
+import java.util.TreeSet;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,12 +30,12 @@ public class BudgetServiceImpl implements BudgetService {
 
     @Override
     @Transactional
-    public Budget saveBudget(String userId, Budget budget) {
+    public Budget saveBudget(UserDataScope scope, Budget budget) {
         validateMonth(budget.getBudgetMonth());
         String category = normalizeCategory(budget.getCategory());
         return budgetRepository
             .findByUseridAndBudgetYearAndBudgetMonthAndCategoryIgnoreCase(
-                userId,
+                scope.ownerId(),
                 budget.getBudgetYear(),
                 budget.getBudgetMonth(),
                 category
@@ -42,17 +45,28 @@ public class BudgetServiceImpl implements BudgetService {
                 return budgetRepository.save(existing);
             })
             .orElseGet(() -> {
-                budget.setUserid(userId);
+                budget.setUserid(scope.ownerId());
                 budget.setCategory(category);
+                budget.setDemoSessionId(scope.demoSessionId());
+                budget.setDemoSeed(false);
                 return budgetRepository.save(budget);
             });
     }
 
     @Override
-    public List<Budget> getBudgets(String userId, int year, int month) {
+    public List<Budget> getBudgets(UserDataScope scope, int year, int month) {
         validateMonth(month);
+        Map<String, Budget> overlaidCandidates = new LinkedHashMap<>();
+        List<Budget> candidates = budgetRepository.findEffectiveCandidatesForOwners(scope.readableOwnerIds(), year, month);
+        candidates.stream().filter(Budget::isDemoSeed).forEach(budget ->
+            overlaidCandidates.put(naturalKey(budget), budget));
+        candidates.stream().filter(budget -> !budget.isDemoSeed()).forEach(budget ->
+            overlaidCandidates.put(naturalKey(budget), budget));
+
         Map<String, Budget> latestByCategory = new LinkedHashMap<>();
-        for (Budget budget : budgetRepository.findEffectiveCandidates(userId, year, month)) {
+        for (Budget budget : overlaidCandidates.values().stream()
+            .sorted(Comparator.comparing(Budget::getBudgetYear).thenComparing(Budget::getBudgetMonth))
+            .toList()) {
             latestByCategory.put(normalizeCategory(budget.getCategory()).toLowerCase(), budget);
         }
         return latestByCategory.values().stream()
@@ -61,27 +75,23 @@ public class BudgetServiceImpl implements BudgetService {
     }
 
     @Override
-    public List<BudgetSummaryDto> getBudgetSummary(String userId, int year, int month) {
+    public List<BudgetSummaryDto> getBudgetSummary(UserDataScope scope, int year, int month) {
         validateMonth(month);
         LocalDate startDate = LocalDate.of(year, month, 1);
         LocalDate endDate = startDate.withDayOfMonth(startDate.lengthOfMonth());
-        Map<String, BigDecimal> actualsByCategory = new LinkedHashMap<>();
-        for (CategoryTotalDto total : expenseRepository.sumByCategoryForUserAndDateBetween(userId, startDate, endDate)) {
+        Map<String, BigDecimal> actualsByCategory = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
+        for (CategoryTotalDto total : expenseRepository.sumByCategoryForOwnersAndDateBetween(scope.readableOwnerIds(), startDate, endDate)) {
             actualsByCategory.put(normalizeCategory(total.category()), nullToZero(total.total()));
         }
 
-        Map<String, Budget> budgetsByCategory = new LinkedHashMap<>();
-        for (Budget budget : getBudgets(userId, year, month)) {
+        Map<String, Budget> budgetsByCategory = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
+        for (Budget budget : getBudgets(scope, year, month)) {
             budgetsByCategory.put(normalizeCategory(budget.getCategory()), budget);
         }
 
-        List<String> categories = new ArrayList<>();
+        Set<String> categories = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
         categories.addAll(budgetsByCategory.keySet());
-        for (String category : actualsByCategory.keySet()) {
-            if (!categories.contains(category)) {
-                categories.add(category);
-            }
-        }
+        categories.addAll(actualsByCategory.keySet());
 
         return categories.stream()
             .sorted(Comparator.naturalOrder())
@@ -105,15 +115,15 @@ public class BudgetServiceImpl implements BudgetService {
     }
 
     @Override
-    public java.util.Optional<Budget> getBudgetById(Long id, String userId) {
-        return budgetRepository.findByIdAndUserid(id, userId);
+    public java.util.Optional<Budget> getBudgetById(Long id, UserDataScope scope) {
+        return budgetRepository.findByIdAndUseridIn(id, scope.readableOwnerIds());
     }
 
     @Override
     @Transactional
-    public Budget updateBudget(Long id, String userId, Budget budget) {
+    public Budget updateBudget(Long id, UserDataScope scope, Budget budget) {
         validateMonth(budget.getBudgetMonth());
-        return budgetRepository.findByIdAndUserid(id, userId)
+        return budgetRepository.findByIdAndUserid(id, scope.ownerId())
             .map(existing -> {
                 existing.setCategory(normalizeCategory(budget.getCategory()));
                 existing.setBudgetYear(budget.getBudgetYear());
@@ -126,8 +136,8 @@ public class BudgetServiceImpl implements BudgetService {
 
     @Override
     @Transactional
-    public void deleteBudget(Long id, String userId) {
-        Budget budget = budgetRepository.findByIdAndUserid(id, userId)
+    public void deleteBudget(Long id, UserDataScope scope) {
+        Budget budget = budgetRepository.findByIdAndUserid(id, scope.ownerId())
             .orElseThrow(() -> new RuntimeException("Budget not found or you do not have permission to delete it"));
         budgetRepository.delete(budget);
     }
@@ -143,6 +153,11 @@ public class BudgetServiceImpl implements BudgetService {
             return "Other";
         }
         return category.trim();
+    }
+
+    private String naturalKey(Budget budget) {
+        return budget.getBudgetYear() + "|" + budget.getBudgetMonth() + "|"
+            + normalizeCategory(budget.getCategory()).toLowerCase();
     }
 
     private BigDecimal nullToZero(BigDecimal value) {

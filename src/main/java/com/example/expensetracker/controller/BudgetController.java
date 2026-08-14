@@ -6,6 +6,7 @@ import com.example.expensetracker.dto.BudgetResponseDto;
 import com.example.expensetracker.dto.BudgetSummaryDto;
 import com.example.expensetracker.model.Budget;
 import com.example.expensetracker.security.CurrentUserService;
+import com.example.expensetracker.security.UserDataScope;
 import com.example.expensetracker.service.BudgetService;
 import com.example.expensetracker.service.RecurringExpenseService;
 import jakarta.validation.Valid;
@@ -43,10 +44,10 @@ public class BudgetController {
         @RequestParam @Min(1) @Max(12) int month,
         Authentication authentication
     ) {
-        String userId = currentUserService.getUserId(authentication);
-        recurringExpenseService.generateDueExpenses(userId, LocalDate.now());
+        UserDataScope scope = currentUserService.getDataScope(authentication);
+        recurringExpenseService.generateDueExpenses(scope, LocalDate.now());
         return ResponseEntity.ok(
-            budgetService.getBudgets(userId, year, month).stream()
+            budgetService.getBudgets(scope, year, month).stream()
                 .map(BudgetMapper::toDto)
                 .toList()
         );
@@ -58,9 +59,9 @@ public class BudgetController {
         @RequestParam @Min(1) @Max(12) int month,
         Authentication authentication
     ) {
-        String userId = currentUserService.getUserId(authentication);
-        recurringExpenseService.generateDueExpenses(userId, LocalDate.now());
-        return ResponseEntity.ok(budgetService.getBudgetSummary(userId, year, month));
+        UserDataScope scope = currentUserService.getDataScope(authentication);
+        recurringExpenseService.generateDueExpenses(scope, LocalDate.now());
+        return ResponseEntity.ok(budgetService.getBudgetSummary(scope, year, month));
     }
 
     @PostMapping
@@ -68,8 +69,8 @@ public class BudgetController {
         @Valid @RequestBody BudgetRequestDto request,
         Authentication authentication
     ) {
-        String userId = currentUserService.getUserId(authentication);
-        Budget saved = budgetService.saveBudget(userId, BudgetMapper.toEntity(request));
+        UserDataScope scope = currentUserService.getDataScope(authentication);
+        Budget saved = budgetService.saveBudget(scope, BudgetMapper.toEntity(request));
         return ResponseEntity.ok(BudgetMapper.toDto(saved));
     }
 
@@ -80,8 +81,8 @@ public class BudgetController {
         Authentication authentication
     ) {
         try {
-            String userId = currentUserService.getUserId(authentication);
-            Budget updated = budgetService.updateBudget(id, userId, BudgetMapper.toEntity(request));
+            UserDataScope scope = currentUserService.getDataScope(authentication);
+            Budget updated = budgetService.updateBudget(id, scope, BudgetMapper.toEntity(request));
             return ResponseEntity.ok(BudgetMapper.toDto(updated));
         } catch (RuntimeException e) {
             return ResponseEntity.notFound().build();
@@ -94,8 +95,8 @@ public class BudgetController {
         Authentication authentication
     ) {
         try {
-            String userId = currentUserService.getUserId(authentication);
-            budgetService.deleteBudget(id, userId);
+            UserDataScope scope = currentUserService.getDataScope(authentication);
+            budgetService.deleteBudget(id, scope);
             return ResponseEntity.noContent().build();
         } catch (RuntimeException e) {
             return ResponseEntity.notFound().build();

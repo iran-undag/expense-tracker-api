@@ -4,6 +4,7 @@ import com.example.expensetracker.dto.CategoryBreakdownDto;
 import com.example.expensetracker.dto.MonthlySummaryDto;
 import com.example.expensetracker.dto.SpendingTrendDto;
 import com.example.expensetracker.security.CurrentUserService;
+import com.example.expensetracker.security.UserDataScope;
 import com.example.expensetracker.service.ReportService;
 import com.example.expensetracker.service.RecurringExpenseService;
 import jakarta.validation.constraints.Max;
@@ -36,9 +37,9 @@ public class ReportController {
         @RequestParam @Min(1) @Max(12) int month,
         Authentication authentication
     ) {
-        String userId = currentUserService.getUserId(authentication);
-        recurringExpenseService.generateDueExpenses(userId, LocalDate.now());
-        return ResponseEntity.ok(reportService.getMonthlySummary(userId, year, month));
+        UserDataScope scope = currentUserService.getDataScope(authentication);
+        recurringExpenseService.generateDueExpenses(scope, LocalDate.now());
+        return ResponseEntity.ok(reportService.getMonthlySummary(scope, year, month));
     }
 
     @GetMapping("/category-breakdown")
@@ -47,9 +48,9 @@ public class ReportController {
         @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate,
         Authentication authentication
     ) {
-        String userId = currentUserService.getUserId(authentication);
-        recurringExpenseService.generateDueExpenses(userId, LocalDate.now());
-        return ResponseEntity.ok(reportService.getCategoryBreakdown(userId, fromDate, toDate));
+        UserDataScope scope = currentUserService.getDataScope(authentication);
+        recurringExpenseService.generateDueExpenses(scope, LocalDate.now());
+        return ResponseEntity.ok(reportService.getCategoryBreakdown(scope, fromDate, toDate));
     }
 
     @GetMapping("/spending-trend")
@@ -60,8 +61,8 @@ public class ReportController {
         @RequestParam(required = false) String category,
         Authentication authentication
     ) {
-        String userId = currentUserService.getUserId(authentication);
-        recurringExpenseService.generateDueExpenses(userId, LocalDate.now());
-        return ResponseEntity.ok(reportService.getSpendingTrend(userId, year, month, months, category));
+        UserDataScope scope = currentUserService.getDataScope(authentication);
+        recurringExpenseService.generateDueExpenses(scope, LocalDate.now());
+        return ResponseEntity.ok(reportService.getSpendingTrend(scope, year, month, months, category));
     }
 }

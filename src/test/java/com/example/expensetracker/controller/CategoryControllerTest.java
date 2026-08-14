@@ -17,6 +17,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.example.expensetracker.model.ExpenseCategory;
 import com.example.expensetracker.security.CurrentUserService;
 import com.example.expensetracker.security.JwtTokenProvider;
+import com.example.expensetracker.security.UserDataScope;
 import com.example.expensetracker.service.CategoryService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.List;
@@ -35,6 +36,8 @@ import org.springframework.test.web.servlet.MockMvc;
 @AutoConfigureMockMvc(addFilters = false)
 @ActiveProfiles("dev")
 class CategoryControllerTest {
+
+    private static final UserDataScope SCOPE = UserDataScope.personal("testuser");
 
     @Autowired
     private MockMvc mockMvc;
@@ -57,8 +60,8 @@ class CategoryControllerTest {
         ExpenseCategory category = category("testuser", "Food", true);
         category.setId(1L);
         category.setSystemDefault(true);
-        when(currentUserService.getUserId(authentication)).thenReturn("testuser");
-        when(categoryService.getCategories("testuser", false)).thenReturn(List.of(category));
+        when(currentUserService.getDataScope(authentication)).thenReturn(SCOPE);
+        when(categoryService.getCategories(SCOPE, false)).thenReturn(List.of(category));
 
         mockMvc.perform(get("/api/categories").principal(authentication))
             .andExpect(status().isOk())
@@ -74,8 +77,8 @@ class CategoryControllerTest {
         Authentication authentication = new TestingAuthenticationToken("testuser", null);
         ExpenseCategory saved = category("testuser", "Pets", true);
         saved.setId(12L);
-        when(currentUserService.getUserId(authentication)).thenReturn("testuser");
-        when(categoryService.createCategory(eq("testuser"), any(ExpenseCategory.class))).thenReturn(saved);
+        when(currentUserService.getDataScope(authentication)).thenReturn(SCOPE);
+        when(categoryService.createCategory(eq(SCOPE), any(ExpenseCategory.class))).thenReturn(saved);
 
         mockMvc.perform(post("/api/categories")
                 .principal(authentication)
@@ -86,7 +89,7 @@ class CategoryControllerTest {
             .andExpect(jsonPath("$.userid").value("testuser"));
 
         var captor = forClass(ExpenseCategory.class);
-        verify(categoryService).createCategory(eq("testuser"), captor.capture());
+        verify(categoryService).createCategory(eq(SCOPE), captor.capture());
         assertThat(captor.getValue().getUserid()).isNull();
         assertThat(captor.getValue().getName()).isEqualTo("Pets");
     }
@@ -109,8 +112,8 @@ class CategoryControllerTest {
     @Test
     void updateCategory_shouldReturn404WhenMissing() throws Exception {
         Authentication authentication = new TestingAuthenticationToken("testuser", null);
-        when(currentUserService.getUserId(authentication)).thenReturn("testuser");
-        when(categoryService.updateCategory(eq(1L), eq("testuser"), any(ExpenseCategory.class)))
+        when(currentUserService.getDataScope(authentication)).thenReturn(SCOPE);
+        when(categoryService.updateCategory(eq(1L), eq(SCOPE), any(ExpenseCategory.class)))
             .thenThrow(new RuntimeException("missing"));
 
         mockMvc.perform(put("/api/categories/1")
@@ -123,12 +126,12 @@ class CategoryControllerTest {
     @Test
     void deleteCategory_shouldReturnNoContent() throws Exception {
         Authentication authentication = new TestingAuthenticationToken("testuser", null);
-        when(currentUserService.getUserId(authentication)).thenReturn("testuser");
+        when(currentUserService.getDataScope(authentication)).thenReturn(SCOPE);
 
         mockMvc.perform(delete("/api/categories/1").principal(authentication))
             .andExpect(status().isNoContent());
 
-        verify(categoryService).deleteCategory(1L, "testuser");
+        verify(categoryService).deleteCategory(1L, SCOPE);
     }
 
     private ExpenseCategory category(String userId, String name, boolean active) {

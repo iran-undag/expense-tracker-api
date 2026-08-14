@@ -5,6 +5,7 @@ import com.example.expensetracker.dto.RecurringExpenseRequestDto;
 import com.example.expensetracker.dto.RecurringExpenseResponseDto;
 import com.example.expensetracker.model.RecurringExpense;
 import com.example.expensetracker.security.CurrentUserService;
+import com.example.expensetracker.security.UserDataScope;
 import com.example.expensetracker.service.RecurringExpenseService;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -30,9 +31,9 @@ public class RecurringExpenseController {
 
     @GetMapping
     public ResponseEntity<List<RecurringExpenseResponseDto>> getRecurringExpenses(Authentication authentication) {
-        String userId = currentUserService.getUserId(authentication);
-        recurringExpenseService.generateDueExpenses(userId, java.time.LocalDate.now());
-        return ResponseEntity.ok(recurringExpenseService.getRecurringExpenses(userId).stream()
+        UserDataScope scope = currentUserService.getDataScope(authentication);
+        recurringExpenseService.generateDueExpenses(scope, java.time.LocalDate.now());
+        return ResponseEntity.ok(recurringExpenseService.getRecurringExpenses(scope).stream()
             .map(RecurringExpenseMapper::toDto)
             .toList());
     }
@@ -42,8 +43,8 @@ public class RecurringExpenseController {
         @Valid @RequestBody RecurringExpenseRequestDto request,
         Authentication authentication
     ) {
-        String userId = currentUserService.getUserId(authentication);
-        RecurringExpense saved = recurringExpenseService.saveRecurringExpense(userId, RecurringExpenseMapper.toEntity(request));
+        UserDataScope scope = currentUserService.getDataScope(authentication);
+        RecurringExpense saved = recurringExpenseService.saveRecurringExpense(scope, RecurringExpenseMapper.toEntity(request));
         return ResponseEntity.ok(RecurringExpenseMapper.toDto(saved));
     }
 
@@ -54,8 +55,8 @@ public class RecurringExpenseController {
         Authentication authentication
     ) {
         try {
-            String userId = currentUserService.getUserId(authentication);
-            RecurringExpense updated = recurringExpenseService.updateRecurringExpense(id, userId, RecurringExpenseMapper.toEntity(request));
+            UserDataScope scope = currentUserService.getDataScope(authentication);
+            RecurringExpense updated = recurringExpenseService.updateRecurringExpense(id, scope, RecurringExpenseMapper.toEntity(request));
             return ResponseEntity.ok(RecurringExpenseMapper.toDto(updated));
         } catch (IllegalArgumentException e) {
             throw e;
@@ -67,8 +68,8 @@ public class RecurringExpenseController {
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteRecurringExpense(@PathVariable Long id, Authentication authentication) {
         try {
-            String userId = currentUserService.getUserId(authentication);
-            recurringExpenseService.deleteRecurringExpense(id, userId);
+            UserDataScope scope = currentUserService.getDataScope(authentication);
+            recurringExpenseService.deleteRecurringExpense(id, scope);
             return ResponseEntity.noContent().build();
         } catch (RuntimeException e) {
             return ResponseEntity.notFound().build();

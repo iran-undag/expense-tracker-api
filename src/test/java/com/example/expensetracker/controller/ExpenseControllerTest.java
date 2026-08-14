@@ -3,6 +3,7 @@ package com.example.expensetracker.controller;
 import com.example.expensetracker.dto.ExpenseCreateRequestDto;
 import com.example.expensetracker.model.Expense;
 import com.example.expensetracker.security.CurrentUserService;
+import com.example.expensetracker.security.UserDataScope;
 import com.example.expensetracker.service.ExpenseFilterCriteria;
 import com.example.expensetracker.service.ExpenseService;
 import com.example.expensetracker.service.ReceiptCategoryNormalizer;
@@ -49,6 +50,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @ActiveProfiles("dev")
 class ExpenseControllerTest {
 
+    private static final UserDataScope SCOPE = UserDataScope.personal("testuser");
+
     @Autowired
     private MockMvc mockMvc;
 
@@ -79,9 +82,9 @@ class ExpenseControllerTest {
         Expense expense = new Expense();
         expense.setDescription("Lunch");
         expense.setUserid("testuser");
-        when(currentUserService.getUserId(authentication)).thenReturn("testuser");
+        when(currentUserService.getDataScope(authentication)).thenReturn(SCOPE);
         PageRequest pageable = PageRequest.of(0, 10, Sort.by(Sort.Direction.DESC, "id"));
-        when(expenseService.getAllExpenses(any(), any(), any()))
+        when(expenseService.getAllExpenses(any(com.example.expensetracker.security.UserDataScope.class), any(), any()))
                 .thenReturn(new PageImpl<>(List.of(expense), pageable, 1));
 
         mockMvc.perform(get("/api/expenses").principal(authentication))
@@ -98,9 +101,9 @@ class ExpenseControllerTest {
     @Test
     void getAllExpenses_shouldPassFiltersToService() throws Exception {
         Authentication authentication = new TestingAuthenticationToken("testuser", null);
-        when(currentUserService.getUserId(authentication)).thenReturn("testuser");
+        when(currentUserService.getDataScope(authentication)).thenReturn(SCOPE);
         PageRequest pageable = PageRequest.of(0, 5, Sort.by(Sort.Direction.DESC, "amount"));
-        when(expenseService.getAllExpenses(any(), any(), any()))
+        when(expenseService.getAllExpenses(any(com.example.expensetracker.security.UserDataScope.class), any(), any()))
                 .thenReturn(new PageImpl<>(List.of(), pageable, 0));
 
         mockMvc.perform(get("/api/expenses")
@@ -119,7 +122,7 @@ class ExpenseControllerTest {
         var filterCaptor = forClass(ExpenseFilterCriteria.class);
         var pageableCaptor = forClass(org.springframework.data.domain.Pageable.class);
         verify(expenseService).getAllExpenses(
-                org.mockito.ArgumentMatchers.eq("testuser"),
+                eq(SCOPE),
                 filterCaptor.capture(),
                 pageableCaptor.capture());
 
@@ -142,9 +145,9 @@ class ExpenseControllerTest {
         expense.setDescription("Groceries");
         expense.setDate(LocalDate.of(2024, 5, 12));
         expense.setUserid("testuser");
-        when(currentUserService.getUserId(authentication)).thenReturn("testuser");
+        when(currentUserService.getDataScope(authentication)).thenReturn(SCOPE);
         PageRequest pageable = PageRequest.of(1, 5, Sort.by(Sort.Direction.DESC, "date"));
-        when(expenseService.getExpensesForMonth(2024, 5, "testuser", pageable))
+        when(expenseService.getExpensesForMonth(2024, 5, SCOPE, pageable))
                 .thenReturn(new PageImpl<>(List.of(expense), pageable, 6));
 
         mockMvc.perform(get("/api/expenses/month/2024/5")
@@ -189,8 +192,8 @@ class ExpenseControllerTest {
         expense.setAmount(new BigDecimal("5.00"));
         expense.setUserid("testuser");
 
-        when(currentUserService.getUserId(authentication)).thenReturn("testuser");
-        when(expenseService.saveExpense(any(Expense.class))).thenReturn(expense);
+        when(currentUserService.getDataScope(authentication)).thenReturn(SCOPE);
+        when(expenseService.saveExpense(eq(SCOPE), any(Expense.class))).thenReturn(expense);
 
         mockMvc.perform(post("/api/expenses").principal(authentication)
                 .contentType(MediaType.APPLICATION_JSON)
@@ -201,8 +204,8 @@ class ExpenseControllerTest {
                 .andExpect(jsonPath("$.username").doesNotExist());
 
         var expenseCaptor = forClass(Expense.class);
-        verify(expenseService).saveExpense(expenseCaptor.capture());
-        assertThat(expenseCaptor.getValue().getUserid()).isEqualTo("testuser");
+        verify(expenseService).saveExpense(eq(SCOPE), expenseCaptor.capture());
+        assertThat(expenseCaptor.getValue().getUserid()).isNull();
     }
 
     @Test
@@ -268,8 +271,8 @@ class ExpenseControllerTest {
                 .category("Restaurant")
                 .build();
 
-        when(currentUserService.getUserId(authentication)).thenReturn("testuser");
-        when(receiptCategoryNormalizer.getActiveCategoryNames("testuser")).thenReturn(activeCategories);
+        when(currentUserService.getDataScope(authentication)).thenReturn(SCOPE);
+        when(receiptCategoryNormalizer.getActiveCategoryNames(SCOPE)).thenReturn(activeCategories);
         when(receiptProcessor.processReceipt(any(), eq(activeCategories))).thenReturn(extractedExpense);
         when(receiptCategoryNormalizer.normalize(extractedExpense, activeCategories)).thenReturn("Food");
 
@@ -288,8 +291,8 @@ class ExpenseControllerTest {
     @Test
     void getExpenseById_shouldReturn404IfNotFound() throws Exception {
         Authentication authentication = new TestingAuthenticationToken("testuser", null);
-        when(currentUserService.getUserId(authentication)).thenReturn("testuser");
-        when(expenseService.getExpenseById(1L, "testuser")).thenReturn(Optional.empty());
+        when(currentUserService.getDataScope(authentication)).thenReturn(SCOPE);
+        when(expenseService.getExpenseById(1L, SCOPE)).thenReturn(Optional.empty());
 
         mockMvc.perform(get("/api/expenses/1").principal(authentication))
                 .andExpect(status().isNotFound());

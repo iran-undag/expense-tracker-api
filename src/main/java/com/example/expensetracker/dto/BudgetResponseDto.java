@@ -17,4 +17,5 @@ public class BudgetResponseDto {
     private Integer month;
     private BigDecimal amount;
     private String userid;
+    private boolean protectedSeed;
 }

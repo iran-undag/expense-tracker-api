@@ -91,7 +91,10 @@ class ChatToolServiceTest {
         assertThatThrownBy(() -> service.execute(monthlyRequest(), NOW))
             .isInstanceOf(ChatIdentityNotFoundException.class);
 
-        verify(recurringExpenseService, never()).generateDueExpenses(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
+        verify(recurringExpenseService, never()).generateDueExpenses(
+            org.mockito.ArgumentMatchers.anyString(),
+            org.mockito.ArgumentMatchers.any()
+        );
     }
 
     @Test

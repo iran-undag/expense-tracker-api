@@ -17,4 +17,5 @@ public class CategoryResponseDto {
     private boolean systemDefault;
     private boolean active;
     private String userid;
+    private boolean protectedSeed;
 }

@@ -23,4 +23,5 @@ public class RecurringExpenseResponseDto {
     private LocalDate nextRunDate;
     private boolean active;
     private String userid;
+    private boolean protectedSeed;
 }

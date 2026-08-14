@@ -6,6 +6,7 @@ import com.example.expensetracker.model.RecurringExpenseOccurrence;
 import com.example.expensetracker.repository.ExpenseRepository;
 import com.example.expensetracker.repository.RecurringExpenseOccurrenceRepository;
 import com.example.expensetracker.repository.RecurringExpenseRepository;
+import com.example.expensetracker.security.UserDataScope;
 import java.time.LocalDate;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -23,9 +24,11 @@ public class RecurringExpenseServiceImpl implements RecurringExpenseService {
 
     @Override
     @Transactional
-    public RecurringExpense saveRecurringExpense(String userId, RecurringExpense recurringExpense) {
+    public RecurringExpense saveRecurringExpense(UserDataScope scope, RecurringExpense recurringExpense) {
         validate(recurringExpense);
-        recurringExpense.setUserid(userId);
+        recurringExpense.setUserid(scope.ownerId());
+        recurringExpense.setDemoSessionId(scope.demoSessionId());
+        recurringExpense.setDemoSeed(false);
         recurringExpense.setDescription(normalizeOptional(recurringExpense.getDescription()));
         recurringExpense.setCategory(normalizeCategory(recurringExpense.getCategory()));
         recurringExpense.setNextRunDate(recurringExpense.getStartDate());
@@ -33,15 +36,15 @@ public class RecurringExpenseServiceImpl implements RecurringExpenseService {
     }
 
     @Override
-    public List<RecurringExpense> getRecurringExpenses(String userId) {
-        return recurringExpenseRepository.findByUseridOrderByActiveDescNextRunDateAsc(userId);
+    public List<RecurringExpense> getRecurringExpenses(UserDataScope scope) {
+        return recurringExpenseRepository.findByUseridInOrderByActiveDescNextRunDateAsc(scope.readableOwnerIds());
     }
 
     @Override
     @Transactional
-    public RecurringExpense updateRecurringExpense(Long id, String userId, RecurringExpense recurringExpense) {
+    public RecurringExpense updateRecurringExpense(Long id, UserDataScope scope, RecurringExpense recurringExpense) {
         validate(recurringExpense);
-        RecurringExpense existing = recurringExpenseRepository.findByIdAndUserid(id, userId)
+        RecurringExpense existing = recurringExpenseRepository.findByIdAndUserid(id, scope.ownerId())
             .orElseThrow(() -> new RuntimeException("Recurring expense not found or you do not have permission to update it"));
 
         existing.setDescription(normalizeOptional(recurringExpense.getDescription()));
@@ -62,17 +65,17 @@ public class RecurringExpenseServiceImpl implements RecurringExpenseService {
 
     @Override
     @Transactional
-    public void deleteRecurringExpense(Long id, String userId) {
-        RecurringExpense existing = recurringExpenseRepository.findByIdAndUserid(id, userId)
+    public void deleteRecurringExpense(Long id, UserDataScope scope) {
+        RecurringExpense existing = recurringExpenseRepository.findByIdAndUserid(id, scope.ownerId())
             .orElseThrow(() -> new RuntimeException("Recurring expense not found or you do not have permission to delete it"));
         recurringExpenseRepository.delete(existing);
     }
 
     @Override
     @Transactional
-    public int generateDueExpenses(String userId, LocalDate today) {
+    public int generateDueExpenses(UserDataScope scope, LocalDate today) {
         int generated = 0;
-        for (RecurringExpense rule : recurringExpenseRepository.findByUseridAndActiveTrueAndNextRunDateLessThanEqual(userId, today)) {
+        for (RecurringExpense rule : recurringExpenseRepository.findByUseridAndActiveTrueAndNextRunDateLessThanEqual(scope.ownerId(), today)) {
             generated += generateForRule(rule, today);
         }
         return generated;
@@ -89,6 +92,8 @@ public class RecurringExpenseServiceImpl implements RecurringExpenseService {
                     .amount(rule.getAmount())
                     .date(occurrenceDate)
                     .category(rule.getCategory())
+                    .demoSessionId(rule.getDemoSessionId())
+                    .demoSeed(false)
                     .build());
                 occurrenceRepository.save(RecurringExpenseOccurrence.builder()
                     .recurringExpenseId(rule.getId())
