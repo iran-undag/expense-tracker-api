@@ -1,6 +1,7 @@
 package com.example.expensetracker.service;
 
 import com.example.expensetracker.model.Expense;
+import com.example.expensetracker.demo.quota.DemoQuotaService;
 import com.example.expensetracker.model.RecurringExpense;
 import com.example.expensetracker.model.RecurringExpenseOccurrence;
 import com.example.expensetracker.repository.ExpenseRepository;
@@ -21,6 +22,7 @@ public class RecurringExpenseServiceImpl implements RecurringExpenseService {
     private final RecurringExpenseRepository recurringExpenseRepository;
     private final RecurringExpenseOccurrenceRepository occurrenceRepository;
     private final ExpenseRepository expenseRepository;
+    private final DemoQuotaService quotaService;
 
     @Override
     @Transactional
@@ -76,16 +78,25 @@ public class RecurringExpenseServiceImpl implements RecurringExpenseService {
     public int generateDueExpenses(UserDataScope scope, LocalDate today) {
         int generated = 0;
         for (RecurringExpense rule : recurringExpenseRepository.findByUseridAndActiveTrueAndNextRunDateLessThanEqual(scope.ownerId(), today)) {
-            generated += generateForRule(rule, today);
+            GenerationResult result = generateForRule(rule, scope, today);
+            generated += result.generated();
+            if (result.quotaExhausted()) {
+                break;
+            }
         }
         return generated;
     }
 
-    private int generateForRule(RecurringExpense rule, LocalDate today) {
+    private GenerationResult generateForRule(RecurringExpense rule, UserDataScope scope, LocalDate today) {
         int generated = 0;
+        boolean quotaExhausted = false;
         LocalDate occurrenceDate = rule.getNextRunDate();
         while (occurrenceDate != null && !occurrenceDate.isAfter(today) && !isPastEndDate(rule, occurrenceDate)) {
             if (!occurrenceRepository.existsByRecurringExpenseIdAndOccurrenceDate(rule.getId(), occurrenceDate)) {
+                if (scope.demo() && !quotaService.tryConsume(scope.demoSessionId(), 1)) {
+                    quotaExhausted = true;
+                    break;
+                }
                 Expense expense = expenseRepository.save(Expense.builder()
                     .userid(rule.getUserid())
                     .description(rule.getDescription())
@@ -111,7 +122,7 @@ public class RecurringExpenseServiceImpl implements RecurringExpenseService {
             rule.setActive(false);
         }
         recurringExpenseRepository.save(rule);
-        return generated;
+        return new GenerationResult(generated, quotaExhausted);
     }
 
     private LocalDate nextDate(RecurringExpense rule, LocalDate current) {
@@ -149,4 +160,6 @@ public class RecurringExpenseServiceImpl implements RecurringExpenseService {
     private String normalizeOptional(String value) {
         return value == null || value.isBlank() ? null : value.trim();
     }
+
+    private record GenerationResult(int generated, boolean quotaExhausted) {}
 }

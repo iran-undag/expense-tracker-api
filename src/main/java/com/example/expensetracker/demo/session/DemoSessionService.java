@@ -18,7 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Profile("prod")
 public class DemoSessionService {
 
-    static final int ACTION_LIMIT = 20;
+    public static final int ACTION_LIMIT = 20;
     private static final int SESSION_HOURS = 6;
     private static final int ACCESS_TOKEN_MINUTES = 15;
     private static final int MAX_ACTIVE_SESSIONS = 2;

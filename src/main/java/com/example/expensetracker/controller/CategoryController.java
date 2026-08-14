@@ -3,6 +3,8 @@ package com.example.expensetracker.controller;
 import com.example.expensetracker.dto.CategoryMapper;
 import com.example.expensetracker.dto.CategoryRequestDto;
 import com.example.expensetracker.dto.CategoryResponseDto;
+import com.example.expensetracker.demo.quota.DemoMutationExecutor;
+import com.example.expensetracker.demo.session.DemoSessionException;
 import com.example.expensetracker.model.ExpenseCategory;
 import com.example.expensetracker.security.CurrentUserService;
 import com.example.expensetracker.security.UserDataScope;
@@ -29,6 +31,7 @@ public class CategoryController {
 
     private final CategoryService categoryService;
     private final CurrentUserService currentUserService;
+    private final DemoMutationExecutor mutationExecutor;
 
     @GetMapping
     public ResponseEntity<List<CategoryResponseDto>> getCategories(
@@ -47,7 +50,8 @@ public class CategoryController {
         Authentication authentication
     ) {
         UserDataScope scope = currentUserService.getDataScope(authentication);
-        ExpenseCategory saved = categoryService.createCategory(scope, CategoryMapper.toEntity(request));
+        ExpenseCategory saved = mutationExecutor.execute(
+            authentication, 1, () -> categoryService.createCategory(scope, CategoryMapper.toEntity(request)));
         return ResponseEntity.ok(CategoryMapper.toDto(saved));
     }
 
@@ -59,9 +63,12 @@ public class CategoryController {
     ) {
         try {
             UserDataScope scope = currentUserService.getDataScope(authentication);
-            ExpenseCategory updated = categoryService.updateCategory(id, scope, CategoryMapper.toEntity(request));
+            ExpenseCategory updated = mutationExecutor.execute(authentication, 1, () ->
+                categoryService.updateCategory(id, scope, CategoryMapper.toEntity(request)));
             return ResponseEntity.ok(CategoryMapper.toDto(updated));
         } catch (IllegalArgumentException e) {
+            throw e;
+        } catch (DemoSessionException e) {
             throw e;
         } catch (RuntimeException e) {
             return ResponseEntity.notFound().build();
@@ -75,8 +82,13 @@ public class CategoryController {
     ) {
         try {
             UserDataScope scope = currentUserService.getDataScope(authentication);
-            categoryService.deleteCategory(id, scope);
+            mutationExecutor.execute(authentication, 1, () -> {
+                categoryService.deleteCategory(id, scope);
+                return null;
+            });
             return ResponseEntity.noContent().build();
+        } catch (DemoSessionException e) {
+            throw e;
         } catch (RuntimeException e) {
             return ResponseEntity.notFound().build();
         }

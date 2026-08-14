@@ -3,6 +3,8 @@ package com.example.expensetracker.controller;
 import com.example.expensetracker.dto.RecurringExpenseMapper;
 import com.example.expensetracker.dto.RecurringExpenseRequestDto;
 import com.example.expensetracker.dto.RecurringExpenseResponseDto;
+import com.example.expensetracker.demo.quota.DemoMutationExecutor;
+import com.example.expensetracker.demo.session.DemoSessionException;
 import com.example.expensetracker.model.RecurringExpense;
 import com.example.expensetracker.security.CurrentUserService;
 import com.example.expensetracker.security.UserDataScope;
@@ -28,6 +30,7 @@ public class RecurringExpenseController {
 
     private final RecurringExpenseService recurringExpenseService;
     private final CurrentUserService currentUserService;
+    private final DemoMutationExecutor mutationExecutor;
 
     @GetMapping
     public ResponseEntity<List<RecurringExpenseResponseDto>> getRecurringExpenses(Authentication authentication) {
@@ -44,7 +47,8 @@ public class RecurringExpenseController {
         Authentication authentication
     ) {
         UserDataScope scope = currentUserService.getDataScope(authentication);
-        RecurringExpense saved = recurringExpenseService.saveRecurringExpense(scope, RecurringExpenseMapper.toEntity(request));
+        RecurringExpense saved = mutationExecutor.execute(authentication, 1, () ->
+            recurringExpenseService.saveRecurringExpense(scope, RecurringExpenseMapper.toEntity(request)));
         return ResponseEntity.ok(RecurringExpenseMapper.toDto(saved));
     }
 
@@ -56,9 +60,12 @@ public class RecurringExpenseController {
     ) {
         try {
             UserDataScope scope = currentUserService.getDataScope(authentication);
-            RecurringExpense updated = recurringExpenseService.updateRecurringExpense(id, scope, RecurringExpenseMapper.toEntity(request));
+            RecurringExpense updated = mutationExecutor.execute(authentication, 1, () ->
+                recurringExpenseService.updateRecurringExpense(id, scope, RecurringExpenseMapper.toEntity(request)));
             return ResponseEntity.ok(RecurringExpenseMapper.toDto(updated));
         } catch (IllegalArgumentException e) {
+            throw e;
+        } catch (DemoSessionException e) {
             throw e;
         } catch (RuntimeException e) {
             return ResponseEntity.notFound().build();
@@ -69,8 +76,13 @@ public class RecurringExpenseController {
     public ResponseEntity<Void> deleteRecurringExpense(@PathVariable Long id, Authentication authentication) {
         try {
             UserDataScope scope = currentUserService.getDataScope(authentication);
-            recurringExpenseService.deleteRecurringExpense(id, scope);
+            mutationExecutor.execute(authentication, 1, () -> {
+                recurringExpenseService.deleteRecurringExpense(id, scope);
+                return null;
+            });
             return ResponseEntity.noContent().build();
+        } catch (DemoSessionException e) {
+            throw e;
         } catch (RuntimeException e) {
             return ResponseEntity.notFound().build();
         }

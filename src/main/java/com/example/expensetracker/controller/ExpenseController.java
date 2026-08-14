@@ -5,6 +5,8 @@ import com.example.expensetracker.dto.ExpenseMapper;
 import com.example.expensetracker.dto.ExpenseResponseDto;
 import com.example.expensetracker.dto.PageResponseDto;
 import com.example.expensetracker.exception.InvalidSortPropertyException;
+import com.example.expensetracker.demo.quota.DemoMutationExecutor;
+import com.example.expensetracker.demo.session.DemoSessionException;
 import com.example.expensetracker.model.Expense;
 import com.example.expensetracker.security.CurrentUserService;
 import com.example.expensetracker.security.UserDataScope;
@@ -58,6 +60,7 @@ public class ExpenseController {
     private final ReceiptCategoryNormalizer receiptCategoryNormalizer;
     private final CurrentUserService currentUserService;
     private final RecurringExpenseService recurringExpenseService;
+    private final DemoMutationExecutor mutationExecutor;
 
     @PostMapping
     @Operation(
@@ -75,7 +78,8 @@ public class ExpenseController {
         log.info("Received request to create expense: {}", request);
         UserDataScope scope = currentUserService.getDataScope(authentication);
         Expense expenseEntity = ExpenseMapper.toEntity(request);
-        Expense savedExpense = expenseService.saveExpense(scope, expenseEntity);
+        Expense savedExpense = mutationExecutor.execute(
+            authentication, 1, () -> expenseService.saveExpense(scope, expenseEntity));
         return ResponseEntity.ok(ExpenseMapper.toDto(savedExpense));
     }
 
@@ -156,12 +160,11 @@ public class ExpenseController {
     ) {
         try {
             UserDataScope scope = currentUserService.getDataScope(authentication);
-            Expense updatedExpense = expenseService.updateExpense(
-                id,
-                scope,
-                ExpenseMapper.toEntity(request)
-            );
+            Expense updatedExpense = mutationExecutor.execute(authentication, 1, () ->
+                expenseService.updateExpense(id, scope, ExpenseMapper.toEntity(request)));
             return ResponseEntity.ok(ExpenseMapper.toDto(updatedExpense));
+        } catch (DemoSessionException e) {
+            throw e;
         } catch (RuntimeException e) {
             return ResponseEntity.notFound().build();
         }
@@ -178,8 +181,13 @@ public class ExpenseController {
     ) {
         try {
             UserDataScope scope = currentUserService.getDataScope(authentication);
-            expenseService.deleteExpense(id, scope);
+            mutationExecutor.execute(authentication, 1, () -> {
+                expenseService.deleteExpense(id, scope);
+                return null;
+            });
             return ResponseEntity.noContent().build();
+        } catch (DemoSessionException e) {
+            throw e;
         } catch (RuntimeException e) {
             return ResponseEntity.notFound().build();
         }

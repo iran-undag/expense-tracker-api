@@ -7,6 +7,7 @@ public class DemoSessionException extends RuntimeException {
     private static final String CAPACITY_REACHED = "DEMO_CAPACITY_REACHED";
     private static final String SESSION_EXPIRED = "DEMO_SESSION_EXPIRED";
     private static final String SERVICE_UNAVAILABLE = "DEMO_SERVICE_UNAVAILABLE";
+    private static final String QUOTA_EXHAUSTED = "DEMO_QUOTA_EXHAUSTED";
 
     private final String code;
     private final HttpStatus status;
@@ -52,6 +53,16 @@ public class DemoSessionException extends RuntimeException {
             "The demo service is temporarily unavailable.",
             null,
             cause
+        );
+    }
+
+    public static DemoSessionException quotaExhausted() {
+        return new DemoSessionException(
+            QUOTA_EXHAUSTED,
+            HttpStatus.TOO_MANY_REQUESTS,
+            "The demo action limit has been reached.",
+            null,
+            null
         );
     }
 

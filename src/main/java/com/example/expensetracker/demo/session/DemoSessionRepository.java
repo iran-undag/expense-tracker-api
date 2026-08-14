@@ -120,6 +120,18 @@ public class DemoSessionRepository {
         return sessions.stream().findFirst();
     }
 
+    public Optional<DemoSession> findActiveSession(UUID sessionId) {
+        List<DemoSession> sessions = entityManager.createNativeQuery("""
+            SELECT * FROM demo_session
+            WHERE id = :sessionId
+              AND status = 'ACTIVE'
+              AND expires_at > SYSDATETIMEOFFSET()
+            """, DemoSession.class)
+            .setParameter("sessionId", sessionId)
+            .getResultList();
+        return sessions.stream().findFirst();
+    }
+
     public void deleteOwnedData(UUID sessionId) {
         executeForSession("DELETE FROM chat_identity_mapping WHERE demo_session_id = :sessionId", sessionId);
         executeForSession("DELETE FROM demo_quota_reservation WHERE demo_session_id = :sessionId", sessionId);

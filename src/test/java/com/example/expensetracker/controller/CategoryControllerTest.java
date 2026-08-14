@@ -15,12 +15,15 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.example.expensetracker.model.ExpenseCategory;
+import com.example.expensetracker.demo.quota.DemoMutationExecutor;
 import com.example.expensetracker.security.CurrentUserService;
 import com.example.expensetracker.security.JwtTokenProvider;
 import com.example.expensetracker.security.UserDataScope;
 import com.example.expensetracker.service.CategoryService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.List;
+import java.util.function.Supplier;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -51,8 +54,17 @@ class CategoryControllerTest {
     @MockBean
     private JwtTokenProvider jwtTokenProvider;
 
+    @MockBean
+    private DemoMutationExecutor mutationExecutor;
+
     @Autowired
     private ObjectMapper objectMapper;
+
+    @BeforeEach
+    void executeMutations() {
+        when(mutationExecutor.execute(any(), org.mockito.ArgumentMatchers.anyInt(), any()))
+            .thenAnswer(invocation -> ((Supplier<?>) invocation.getArgument(2)).get());
+    }
 
     @Test
     void getCategories_shouldUseAuthenticatedUser() throws Exception {
@@ -90,6 +102,7 @@ class CategoryControllerTest {
 
         var captor = forClass(ExpenseCategory.class);
         verify(categoryService).createCategory(eq(SCOPE), captor.capture());
+        verify(mutationExecutor).execute(eq(authentication), eq(1), any());
         assertThat(captor.getValue().getUserid()).isNull();
         assertThat(captor.getValue().getName()).isEqualTo("Pets");
     }

@@ -12,6 +12,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.example.expensetracker.config.CorsConfig;
 import com.example.expensetracker.demo.security.DemoPrincipal;
 import com.example.expensetracker.exception.GlobalExceptionHandler;
+import com.example.expensetracker.demo.quota.DemoSessionHeadersAdvice;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.UUID;
@@ -153,7 +154,12 @@ class DemoSessionControllerTest {
         org.assertj.core.api.Assertions.assertThat(configuration.getAllowedOriginPatterns())
             .containsExactly("https://app.example.com");
         org.assertj.core.api.Assertions.assertThat(configuration.getExposedHeaders())
-            .contains(HttpHeaders.RETRY_AFTER);
+            .contains(
+                HttpHeaders.RETRY_AFTER,
+                DemoSessionHeadersAdvice.ACTIONS_LIMIT,
+                DemoSessionHeadersAdvice.ACTIONS_REMAINING,
+                DemoSessionHeadersAdvice.SESSION_EXPIRES_AT
+            );
     }
 
     private static DemoSessionService.SessionGrant grant(String resumeToken, long maxAge) {

@@ -15,6 +15,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.example.expensetracker.model.Budget;
+import com.example.expensetracker.demo.quota.DemoMutationExecutor;
 import com.example.expensetracker.security.CurrentUserService;
 import com.example.expensetracker.security.JwtTokenProvider;
 import com.example.expensetracker.security.UserDataScope;
@@ -23,6 +24,8 @@ import com.example.expensetracker.service.RecurringExpenseService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.function.Supplier;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -56,8 +59,17 @@ class BudgetControllerTest {
     @MockBean
     private RecurringExpenseService recurringExpenseService;
 
+    @MockBean
+    private DemoMutationExecutor mutationExecutor;
+
     @Autowired
     private ObjectMapper objectMapper;
+
+    @BeforeEach
+    void executeMutations() {
+        when(mutationExecutor.execute(any(), org.mockito.ArgumentMatchers.anyInt(), any()))
+            .thenAnswer(invocation -> ((Supplier<?>) invocation.getArgument(2)).get());
+    }
 
     @Test
     void getBudgets_shouldReturnUserBudgetsForMonth() throws Exception {
@@ -96,6 +108,7 @@ class BudgetControllerTest {
 
         var budgetCaptor = forClass(Budget.class);
         verify(budgetService).saveBudget(eq(SCOPE), budgetCaptor.capture());
+        verify(mutationExecutor).execute(eq(authentication), eq(1), any());
         assertThat(budgetCaptor.getValue().getUserid()).isNull();
         assertThat(budgetCaptor.getValue().getCategory()).isEqualTo("Food");
     }

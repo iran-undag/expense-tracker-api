@@ -1,6 +1,8 @@
 package com.example.expensetracker.controller;
 
 import com.example.expensetracker.dto.ExpenseCreateRequestDto;
+import com.example.expensetracker.demo.quota.DemoMutationExecutor;
+import com.example.expensetracker.demo.session.DemoSessionException;
 import com.example.expensetracker.model.Expense;
 import com.example.expensetracker.security.CurrentUserService;
 import com.example.expensetracker.security.UserDataScope;
@@ -11,6 +13,7 @@ import com.example.expensetracker.service.ReceiptProcessor;
 import com.example.expensetracker.service.RecurringExpenseService;
 import com.example.expensetracker.security.JwtTokenProvider;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -30,12 +33,14 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
+import java.util.function.Supplier;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentCaptor.forClass;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -73,8 +78,17 @@ class ExpenseControllerTest {
     @MockBean
     private RecurringExpenseService recurringExpenseService;
 
+    @MockBean
+    private DemoMutationExecutor mutationExecutor;
+
     @Autowired
     private ObjectMapper objectMapper;
+
+    @BeforeEach
+    void executeMutations() {
+        when(mutationExecutor.execute(any(), org.mockito.ArgumentMatchers.anyInt(), any()))
+            .thenAnswer(invocation -> ((Supplier<?>) invocation.getArgument(2)).get());
+    }
 
     @Test
     void getAllExpenses_shouldReturnPagedList() throws Exception {
@@ -205,6 +219,7 @@ class ExpenseControllerTest {
 
         var expenseCaptor = forClass(Expense.class);
         verify(expenseService).saveExpense(eq(SCOPE), expenseCaptor.capture());
+        verify(mutationExecutor).execute(eq(authentication), eq(1), any());
         assertThat(expenseCaptor.getValue().getUserid()).isNull();
     }
 
@@ -238,6 +253,22 @@ class ExpenseControllerTest {
                 .andExpect(jsonPath("$.fields.amount").value("Amount is required"));
 
         verifyNoInteractions(expenseService);
+    }
+
+    @Test
+    void updateExpense_shouldPreserveQuotaExhausted429() throws Exception {
+        Authentication authentication = new TestingAuthenticationToken("testuser", null);
+        when(currentUserService.getDataScope(authentication)).thenReturn(SCOPE);
+        doThrow(DemoSessionException.quotaExhausted())
+            .when(mutationExecutor).execute(eq(authentication), eq(1), any());
+
+        mockMvc.perform(put("/api/expenses/1").principal(authentication)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"description\":\"Coffee\",\"amount\":5.00}"))
+            .andExpect(status().isTooManyRequests())
+            .andExpect(jsonPath("$.code").value("DEMO_QUOTA_EXHAUSTED"))
+            .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header()
+                .string("Cache-Control", org.hamcrest.Matchers.containsString("no-store")));
     }
 
     @Test

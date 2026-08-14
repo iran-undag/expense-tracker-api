@@ -1,5 +1,6 @@
 package com.example.expensetracker.config;
 
+import com.example.expensetracker.demo.quota.DemoSessionHeadersAdvice;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -20,7 +21,13 @@ public class CorsConfig {
         config.setAllowedOriginPatterns(parseCsv(allowedOriginPatterns));
         config.setAllowedHeaders(List.of("Origin", "Content-Type", "Accept", "Authorization", "X-Requested-With",
                 CorrelationId.HEADER_NAME));
-        config.setExposedHeaders(List.of(CorrelationId.HEADER_NAME, "Retry-After"));
+        config.setExposedHeaders(List.of(
+            CorrelationId.HEADER_NAME,
+            "Retry-After",
+            DemoSessionHeadersAdvice.ACTIONS_LIMIT,
+            DemoSessionHeadersAdvice.ACTIONS_REMAINING,
+            DemoSessionHeadersAdvice.SESSION_EXPIRES_AT
+        ));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();

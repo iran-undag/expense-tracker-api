@@ -9,6 +9,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.example.expensetracker.config.CorrelationIdFilter;
+import com.example.expensetracker.demo.quota.DemoQuotaService;
+import com.example.expensetracker.demo.quota.DemoSessionHeadersAdvice;
 import com.example.expensetracker.demo.session.DemoSessionController;
 import com.example.expensetracker.demo.session.DemoSessionFacade;
 import com.example.expensetracker.demo.session.DemoSessionResponse;
@@ -70,10 +72,15 @@ public class DemoAuthenticationIntegrationTest {
     @MockBean
     private DemoSessionFacade demoSessionFacade;
 
+    @MockBean
+    private DemoQuotaService demoQuotaService;
+
     @BeforeEach
     void clearDemoRows() {
         demoJdbc.update("DELETE FROM demo_access_token");
         demoJdbc.update("DELETE FROM demo_session");
+        when(demoQuotaService.current(SESSION_ID)).thenReturn(
+            new DemoQuotaService.QuotaSnapshot(20, 20, OffsetDateTime.now(ZoneOffset.UTC).plusHours(6)));
     }
 
     @Test
@@ -85,7 +92,11 @@ public class DemoAuthenticationIntegrationTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.principalType").value("DemoPrincipal"))
             .andExpect(jsonPath("$.principalName").value("demo-session-owner"))
-            .andExpect(jsonPath("$.realm").value("DEMO"));
+            .andExpect(jsonPath("$.realm").value("DEMO"))
+            .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header()
+                .string(DemoSessionHeadersAdvice.ACTIONS_LIMIT, "20"))
+            .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header()
+                .string(DemoSessionHeadersAdvice.ACTIONS_REMAINING, "20"));
 
         assertThat(DataRealmContext.current()).isEmpty();
     }

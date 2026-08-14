@@ -4,6 +4,8 @@ import com.example.expensetracker.dto.BudgetMapper;
 import com.example.expensetracker.dto.BudgetRequestDto;
 import com.example.expensetracker.dto.BudgetResponseDto;
 import com.example.expensetracker.dto.BudgetSummaryDto;
+import com.example.expensetracker.demo.quota.DemoMutationExecutor;
+import com.example.expensetracker.demo.session.DemoSessionException;
 import com.example.expensetracker.model.Budget;
 import com.example.expensetracker.security.CurrentUserService;
 import com.example.expensetracker.security.UserDataScope;
@@ -37,6 +39,7 @@ public class BudgetController {
     private final BudgetService budgetService;
     private final CurrentUserService currentUserService;
     private final RecurringExpenseService recurringExpenseService;
+    private final DemoMutationExecutor mutationExecutor;
 
     @GetMapping
     public ResponseEntity<List<BudgetResponseDto>> getBudgets(
@@ -70,7 +73,8 @@ public class BudgetController {
         Authentication authentication
     ) {
         UserDataScope scope = currentUserService.getDataScope(authentication);
-        Budget saved = budgetService.saveBudget(scope, BudgetMapper.toEntity(request));
+        Budget saved = mutationExecutor.execute(
+            authentication, 1, () -> budgetService.saveBudget(scope, BudgetMapper.toEntity(request)));
         return ResponseEntity.ok(BudgetMapper.toDto(saved));
     }
 
@@ -82,8 +86,11 @@ public class BudgetController {
     ) {
         try {
             UserDataScope scope = currentUserService.getDataScope(authentication);
-            Budget updated = budgetService.updateBudget(id, scope, BudgetMapper.toEntity(request));
+            Budget updated = mutationExecutor.execute(authentication, 1, () ->
+                budgetService.updateBudget(id, scope, BudgetMapper.toEntity(request)));
             return ResponseEntity.ok(BudgetMapper.toDto(updated));
+        } catch (DemoSessionException e) {
+            throw e;
         } catch (RuntimeException e) {
             return ResponseEntity.notFound().build();
         }
@@ -96,8 +103,13 @@ public class BudgetController {
     ) {
         try {
             UserDataScope scope = currentUserService.getDataScope(authentication);
-            budgetService.deleteBudget(id, scope);
+            mutationExecutor.execute(authentication, 1, () -> {
+                budgetService.deleteBudget(id, scope);
+                return null;
+            });
             return ResponseEntity.noContent().build();
+        } catch (DemoSessionException e) {
+            throw e;
         } catch (RuntimeException e) {
             return ResponseEntity.notFound().build();
         }

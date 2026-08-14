@@ -27,6 +27,18 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
+    void handleQuotaExhaustion_shouldReturnNonCacheableStable429() {
+        GlobalExceptionHandler handler = new GlobalExceptionHandler("1MB");
+
+        var response = handler.handleDemoSessionException(DemoSessionException.quotaExhausted());
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.TOO_MANY_REQUESTS);
+        assertThat(response.getHeaders().getCacheControl()).isEqualTo("no-store");
+        Map<?, ?> body = (Map<?, ?>) response.getBody();
+        assertThat(body.get("code")).isEqualTo("DEMO_QUOTA_EXHAUSTED");
+    }
+
+    @Test
     void handleReceiptProcessingException_withTimeoutCause_shouldReturnTimeoutMessage() {
         GlobalExceptionHandler handler = new GlobalExceptionHandler("1MB");
         var exception = new ReceiptProcessingException(
