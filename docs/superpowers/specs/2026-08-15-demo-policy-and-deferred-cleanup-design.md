@@ -1,5 +1,8 @@
 # Demo Policy and Deferred Cleanup Design
 
+Status: Superseded by the approved demo renewal, admission-window, and 10-action policy implemented
+on 2026-08-15. This document remains the design record for logout and deferred cleanup behavior.
+
 ## Goal
 
 Reduce each demo session to 15 actions and one hour, and make logout responsive without weakening server-side session invalidation.

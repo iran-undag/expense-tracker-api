@@ -153,11 +153,13 @@ DEMO_TOKEN_HMAC_KEY=replace-with-at-least-32-random-bytes
 See [.env.sample](.env.sample) for connection timeout/retry settings. Keep
 `DEMO_TOKEN_HMAC_KEY` server-side; changing it invalidates current demo access and resume tokens.
 
-The fixed demo limits are two concurrent sessions, 15 write/paid actions per session, and a
-one-hour session lifetime. Logout immediately invalidates the session and frees its slot without
-waiting for owned-data deletion. Every database-backed demo login attempt requests single-flight
-cleanup asynchronously after its transaction; failures roll back and a later login retries. When
-no sessions are active, the protected seed is refreshed for
+The fixed demo limits are two concurrent sessions, 10 write/paid actions per session, and a
+one-hour session lifetime. Successful new sessions are limited to four in a rolling hour and 12 in
+a rolling 24-hour window. Resuming or renewing an active session does not consume admission quota.
+Logout immediately invalidates the session and frees its slot without waiting for owned-data
+deletion. Every database-backed demo session request schedules single-flight cleanup asynchronously
+after its transaction; failures roll back and a later request retries. When no sessions are active,
+the protected seed is refreshed for
 the current month: 85 expenses across six months, 16 categories, five budgets, and three recurring
 rules. Seed rows are readable but cannot be changed by demo users.
 
@@ -168,7 +170,7 @@ curl -i -c /tmp/expense-demo-cookie.txt -X POST http://localhost:8081/api/demo/s
 # Copy accessToken from the response, then:
 curl -i http://localhost:8081/api/expenses \
   -H "Authorization: Bearer dmo_replace_me"
-curl -i -b /tmp/expense-demo-cookie.txt -X POST http://localhost:8081/api/demo/sessions
+curl -i -b /tmp/expense-demo-cookie.txt -X POST http://localhost:8081/api/demo/sessions/renew
 curl -i -X DELETE http://localhost:8081/api/demo/sessions/current \
   -H "Authorization: Bearer dmo_replace_me"
 curl -s http://localhost:8081/actuator/prometheus | grep '^demo_'
