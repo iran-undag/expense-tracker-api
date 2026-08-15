@@ -211,49 +211,58 @@ public class DemoSessionRepository {
         entityManager.flush();
     }
 
-    public void deleteOldAttempts() {
-        execute("""
-            DELETE FROM demo_session_attempt
-            WHERE attempted_at <= DATEADD(HOUR, -1, SYSDATETIMEOFFSET())
-            """);
+    public void deleteAdmissionsOutsideWindow(OffsetDateTime now) {
+        entityManager.createNativeQuery("""
+            DELETE FROM demo_session_admission
+            WHERE admitted_at <= DATEADD(HOUR, -24, :now)
+            """)
+            .setParameter("now", now)
+            .executeUpdate();
     }
 
-    public int attemptCountForIp(String ipDigest) {
-        return ((Number) entityManager.createNativeQuery("""
-            SELECT COUNT(*) FROM demo_session_attempt
-            WHERE ip_digest = :ipDigest
-              AND attempted_at > DATEADD(HOUR, -1, SYSDATETIMEOFFSET())
+    public int hourlyAdmissionCount(OffsetDateTime now) {
+        return admissionCountAfter(now.minusHours(1));
+    }
+
+    public int dailyAdmissionCount(OffsetDateTime now) {
+        return admissionCountAfter(now.minusHours(24));
+    }
+
+    public Optional<OffsetDateTime> oldestHourlyAdmission(OffsetDateTime now) {
+        return oldestAdmissionAfter(now.minusHours(1));
+    }
+
+    public Optional<OffsetDateTime> oldestDailyAdmission(OffsetDateTime now) {
+        return oldestAdmissionAfter(now.minusHours(24));
+    }
+
+    public void recordAdmission(OffsetDateTime admittedAt) {
+        entityManager.createNativeQuery("""
+            INSERT INTO demo_session_admission (admitted_at)
+            VALUES (:admittedAt)
             """)
-            .setParameter("ipDigest", ipDigest)
+            .setParameter("admittedAt", admittedAt)
+            .executeUpdate();
+    }
+
+    private int admissionCountAfter(OffsetDateTime cutoff) {
+        return ((Number) entityManager.createNativeQuery("""
+            SELECT COUNT(*) FROM demo_session_admission
+            WHERE admitted_at > :cutoff
+            """)
+            .setParameter("cutoff", cutoff)
             .getSingleResult()).intValue();
     }
 
-    public int globalAttemptCount() {
-        return ((Number) entityManager.createNativeQuery("""
-            SELECT COUNT(*) FROM demo_session_attempt
-            WHERE attempted_at > DATEADD(HOUR, -1, SYSDATETIMEOFFSET())
-            """).getSingleResult()).intValue();
-    }
-
-    public Optional<OffsetDateTime> oldestAttempt(String ipDigest, boolean global) {
-        String predicate = global ? "" : "AND ip_digest = :ipDigest";
-        var query = entityManager.createNativeQuery("""
-            SELECT CONVERT(VARCHAR(40), MIN(attempted_at), 127) FROM demo_session_attempt
-            WHERE attempted_at > DATEADD(HOUR, -1, SYSDATETIMEOFFSET())
-            """ + predicate);
-        if (!global) {
-            query.setParameter("ipDigest", ipDigest);
-        }
-        return optionalOffsetDateTime(query.getSingleResult());
-    }
-
-    public void recordAttempt(String ipDigest) {
-        entityManager.createNativeQuery("""
-            INSERT INTO demo_session_attempt (ip_digest, attempted_at)
-            VALUES (:ipDigest, SYSDATETIMEOFFSET())
+    private Optional<OffsetDateTime> oldestAdmissionAfter(OffsetDateTime cutoff) {
+        Object value = entityManager.createNativeQuery("""
+            SELECT CONVERT(VARCHAR(40), MIN(admitted_at), 127)
+            FROM demo_session_admission
+            WHERE admitted_at > :cutoff
             """)
-            .setParameter("ipDigest", ipDigest)
-            .executeUpdate();
+            .setParameter("cutoff", cutoff)
+            .getSingleResult();
+        return optionalOffsetDateTime(value);
     }
 
     private Optional<DemoSession> singleSession(String sql, String resumeDigest) {

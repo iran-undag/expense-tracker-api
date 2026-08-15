@@ -23,12 +23,13 @@ public class DemoSessionService {
     private static final int SESSION_HOURS = 1;
     private static final int ACCESS_TOKEN_MINUTES = 15;
     private static final int MAX_ACTIVE_SESSIONS = 2;
+    private static final int HOURLY_ADMISSION_LIMIT = 4;
+    private static final int DAILY_ADMISSION_LIMIT = 12;
     private static final String SHARED_ACCOUNT_ID = "demo-shared-account";
     private static final ZoneId DEMO_ZONE = ZoneId.of("Asia/Manila");
 
     private final DemoSessionRepository sessionRepository;
     private final DemoAccessTokenRepository accessTokenRepository;
-    private final DemoSessionRateLimiter rateLimiter;
     private final DemoTokenDigester tokenDigester;
     private final ObjectProvider<DemoSeedRefresher> seedRefresherProvider;
     private final DemoMetrics metrics;
@@ -36,14 +37,12 @@ public class DemoSessionService {
     public DemoSessionService(
         DemoSessionRepository sessionRepository,
         DemoAccessTokenRepository accessTokenRepository,
-        DemoSessionRateLimiter rateLimiter,
         DemoTokenDigester tokenDigester,
         ObjectProvider<DemoSeedRefresher> seedRefresherProvider,
         DemoMetrics metrics
     ) {
         this.sessionRepository = sessionRepository;
         this.accessTokenRepository = accessTokenRepository;
-        this.rateLimiter = rateLimiter;
         this.tokenDigester = tokenDigester;
         this.seedRefresherProvider = seedRefresherProvider;
         this.metrics = metrics;
@@ -53,7 +52,7 @@ public class DemoSessionService {
         isolation = Isolation.SERIALIZABLE,
         noRollbackFor = DemoSessionException.class
     )
-    public SessionGrant createOrResume(String rawResumeCookie, String remoteAddress) {
+    public SessionGrant createOrResume(String rawResumeCookie) {
         Optional<DemoSession> cookieSession = findCookieSession(rawResumeCookie);
 
         if (cookieSession.isPresent()
@@ -72,11 +71,12 @@ public class DemoSessionService {
             return issueAccessToken(lockedSession, rawResumeCookie);
         }
 
-        rateLimiter.checkAndRecord(remoteAddress);
         OffsetDateTime now = sessionRepository.databaseNow();
         YearMonth anchorMonth = YearMonth.from(now.atZoneSameInstant(DEMO_ZONE));
         sessionRepository.ensureAdmissionRow(anchorMonth.atDay(1), now);
         sessionRepository.lockAdmissionRow();
+        sessionRepository.deleteAdmissionsOutsideWindow(now);
+        enforceRollingAdmission(now);
 
         int activeCount = sessionRepository.activeSessionCount();
         if (activeCount >= MAX_ACTIVE_SESSIONS) {
@@ -101,6 +101,7 @@ public class DemoSessionService {
             .resumeTokenDigest(tokenDigester.digest(resumeToken))
             .build();
         sessionRepository.save(session);
+        sessionRepository.recordAdmission(now);
         metrics.sessionCreated();
         metrics.activeSessions(activeCount + 1);
 
@@ -165,8 +166,37 @@ public class DemoSessionService {
 
     private long capacityRetryAfter(OffsetDateTime now) {
         return sessionRepository.earliestActiveExpiry()
-            .map(expiry -> Math.max(1, Duration.between(now, expiry).getSeconds()))
+            .map(expiry -> retryAfterSeconds(now, expiry))
             .orElse(1L);
+    }
+
+    private void enforceRollingAdmission(OffsetDateTime now) {
+        OffsetDateTime retryAt = null;
+        if (sessionRepository.hourlyAdmissionCount(now) >= HOURLY_ADMISSION_LIMIT) {
+            retryAt = sessionRepository.oldestHourlyAdmission(now)
+                .map(oldest -> oldest.plusHours(1))
+                .orElse(now.plusSeconds(1));
+        }
+        if (sessionRepository.dailyAdmissionCount(now) >= DAILY_ADMISSION_LIMIT) {
+            OffsetDateTime dailyRetryAt = sessionRepository.oldestDailyAdmission(now)
+                .map(oldest -> oldest.plusHours(24))
+                .orElse(now.plusSeconds(1));
+            if (retryAt == null || dailyRetryAt.isAfter(retryAt)) {
+                retryAt = dailyRetryAt;
+            }
+        }
+        if (retryAt != null) {
+            throw DemoSessionException.capacityReached(retryAfterSeconds(now, retryAt));
+        }
+    }
+
+    private static long retryAfterSeconds(OffsetDateTime now, OffsetDateTime retryAt) {
+        Duration remaining = Duration.between(now, retryAt);
+        long seconds = remaining.getSeconds();
+        if (remaining.getNano() > 0) {
+            seconds++;
+        }
+        return Math.max(1, seconds);
     }
 
     private static OffsetDateTime min(OffsetDateTime first, OffsetDateTime second) {

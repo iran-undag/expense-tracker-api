@@ -42,7 +42,7 @@ public class DemoSessionFacade {
             ensureMigrated();
             databaseReady = true;
             return realmExecutor.inRealm(DataRealm.DEMO,
-                () -> demoSessionService.createOrResume(rawResumeCookie, remoteAddress));
+                () -> demoSessionService.createOrResume(rawResumeCookie));
         } catch (DemoSessionException exception) {
             if ("DEMO_CAPACITY_REACHED".equals(exception.code())) {
                 metrics.capacityRejected();

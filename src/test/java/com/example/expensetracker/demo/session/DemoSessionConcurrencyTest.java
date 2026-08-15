@@ -67,9 +67,6 @@ class DemoSessionConcurrencyTest {
     private DemoDatabaseInitializer databaseInitializer;
 
     @Autowired
-    private DemoSessionRateLimiter rateLimiter;
-
-    @Autowired
     private DataRealmExecutor realmExecutor;
 
     @Autowired
@@ -205,24 +202,6 @@ class DemoSessionConcurrencyTest {
     }
 
     @Test
-    void enforcesPerIpAndGlobalCreationLimitsUsingNormalizedRemoteAddresses() {
-        for (int index = 0; index < 5; index++) {
-            rateLimitAttempt(index % 2 == 0 ? "2001:db8::7" : "2001:0db8:0:0:0:0:0:7");
-        }
-        assertThatThrownBy(() -> rateLimitAttempt("2001:db8::7"))
-            .isInstanceOfSatisfying(DemoSessionException.class,
-                exception -> assertThat(exception.code()).isEqualTo("DEMO_CAPACITY_REACHED"));
-
-        jdbc.update("DELETE FROM demo_session_attempt");
-        for (int index = 0; index < 30; index++) {
-            rateLimitAttempt("198.51.100." + index);
-        }
-        assertThatThrownBy(() -> rateLimitAttempt("203.0.113.250"))
-            .isInstanceOfSatisfying(DemoSessionException.class,
-                exception -> assertThat(exception.code()).isEqualTo("DEMO_CAPACITY_REACHED"));
-    }
-
-    @Test
     void logoutInvalidatesSessionAndDefersOwnedDataDeletion() {
         DemoSessionService.SessionGrant grant = facade.createOrResume(null, "198.51.100.21");
         UUID sessionId = sessionIdForAccessToken(grant.response().accessToken());
@@ -262,10 +241,6 @@ class DemoSessionConcurrencyTest {
         assertThat(ownedRowCount("demo_access_token", sessionId)).isEqualTo(accessTokensBefore);
         assertThat(jdbc.queryForObject("SELECT status FROM demo_session WHERE id = ?", String.class, sessionId))
             .isEqualTo("ACTIVE");
-    }
-
-    private void rateLimitAttempt(String remoteAddress) {
-        realmExecutor.inRealm(DataRealm.DEMO, () -> rateLimiter.checkAndRecord(remoteAddress));
     }
 
     private UUID sessionIdForAccessToken(String rawAccessToken) {
