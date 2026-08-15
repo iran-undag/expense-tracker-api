@@ -1,5 +1,7 @@
 # Demo Policy and Deferred Cleanup Implementation Plan
 
+**Status:** Completed and verified on 2026-08-15.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Enforce 15-action, one-hour demo sessions and move expensive session-owned data deletion from logout to non-blocking login-triggered cleanup.
