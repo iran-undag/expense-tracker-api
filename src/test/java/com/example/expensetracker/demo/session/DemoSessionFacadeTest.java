@@ -74,6 +74,42 @@ class DemoSessionFacadeTest {
         verify(cleanupScheduler, never()).schedule();
     }
 
+    @Test
+    void schedulesCleanupAfterSuccessfulDatabaseBackedRenewal() {
+        DemoSessionService.SessionGrant grant = mock(DemoSessionService.SessionGrant.class);
+        when(realmExecutor.inRealm(
+            eq(DataRealm.DEMO), anySessionGrantSupplier())).thenReturn(grant);
+
+        assertThat(facade.renew("resume")).isSameAs(grant);
+
+        verify(cleanupScheduler).schedule();
+    }
+
+    @Test
+    void schedulesCleanupAfterDatabaseBackedRenewalRejection() {
+        when(realmExecutor.inRealm(
+            eq(DataRealm.DEMO), anySessionGrantSupplier()))
+            .thenThrow(DemoSessionException.sessionExpired());
+
+        assertThatThrownBy(() -> facade.renew("resume"))
+            .isInstanceOfSatisfying(DemoSessionException.class,
+                exception -> assertThat(exception.code()).isEqualTo("DEMO_SESSION_EXPIRED"));
+
+        verify(cleanupScheduler).schedule();
+    }
+
+    @Test
+    void doesNotScheduleRenewalCleanupWhenDatabaseInitializationFails() {
+        doThrow(new IllegalStateException("database unavailable"))
+            .when(initializer).ensureMigrated();
+
+        assertThatThrownBy(() -> facade.renew("resume"))
+            .isInstanceOfSatisfying(DemoSessionException.class,
+                exception -> assertThat(exception.code()).isEqualTo("DEMO_SERVICE_UNAVAILABLE"));
+
+        verify(cleanupScheduler, never()).schedule();
+    }
+
     @SuppressWarnings("unchecked")
     private static Supplier<DemoSessionService.SessionGrant> anySessionGrantSupplier() {
         return any(Supplier.class);

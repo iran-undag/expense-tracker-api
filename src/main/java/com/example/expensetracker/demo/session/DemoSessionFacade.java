@@ -58,6 +58,25 @@ public class DemoSessionFacade {
         }
     }
 
+    public DemoSessionService.SessionGrant renew(String rawResumeCookie) {
+        boolean databaseReady = false;
+        try {
+            ensureMigrated();
+            databaseReady = true;
+            return realmExecutor.inRealm(DataRealm.DEMO,
+                () -> demoSessionService.renew(rawResumeCookie));
+        } catch (DemoSessionException exception) {
+            throw exception;
+        } catch (RuntimeException exception) {
+            metrics.databaseFailure();
+            throw DemoSessionException.serviceUnavailable(exception);
+        } finally {
+            if (databaseReady) {
+                cleanupScheduler.schedule();
+            }
+        }
+    }
+
     public void logout(UUID sessionId) {
         try {
             ensureMigrated();

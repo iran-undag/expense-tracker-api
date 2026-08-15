@@ -115,6 +115,55 @@ class DemoSessionServiceTest {
         writes.verify(sessionRepository).recordAdmission(NOW);
     }
 
+    @Test
+    void renewRejectsMissingCookieWithoutCreatingSession() {
+        assertThatThrownBy(() -> service.renew(null))
+            .isInstanceOfSatisfying(DemoSessionException.class,
+                exception -> assertThat(exception.code()).isEqualTo("DEMO_SESSION_EXPIRED"));
+
+        verify(sessionRepository, never()).save(any());
+        verify(sessionRepository, never()).recordAdmission(any());
+        verifyNoInteractions(accessTokenRepository);
+    }
+
+    @Test
+    void renewRejectsCookieWithoutActiveSessionWithoutCreatingSession() {
+        when(digester.digest("invalid-token")).thenReturn("digest");
+        when(sessionRepository.findActiveByResumeDigest("digest")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.renew("invalid-token"))
+            .isInstanceOfSatisfying(DemoSessionException.class,
+                exception -> assertThat(exception.code()).isEqualTo("DEMO_SESSION_EXPIRED"));
+
+        verify(sessionRepository, never()).save(any());
+        verify(sessionRepository, never()).recordAdmission(any());
+        verifyNoInteractions(accessTokenRepository);
+    }
+
+    @Test
+    void renewIssuesTokenForSameActiveSessionWithoutChangingExpiryOrQuota() {
+        DemoSession session = activeSession(NOW.plusMinutes(40), 3, 2);
+        when(digester.digest("resume-token")).thenReturn("resume-digest");
+        when(digester.digest("access-token")).thenReturn("access-digest");
+        when(digester.generateAccessToken()).thenReturn("access-token");
+        when(sessionRepository.findActiveByResumeDigest("resume-digest"))
+            .thenReturn(Optional.of(session));
+        when(sessionRepository.lockActiveSession(session.getId())).thenReturn(Optional.of(session));
+        when(sessionRepository.databaseNow()).thenReturn(NOW, NOW);
+        when(sessionRepository.activeSessionCount()).thenReturn(1);
+
+        DemoSessionService.SessionGrant grant = service.renew("resume-token");
+
+        assertThat(grant.response().sessionExpiresAt()).isEqualTo(session.getExpiresAt());
+        assertThat(grant.response().actionLimit()).isEqualTo(DemoSessionService.ACTION_LIMIT);
+        assertThat(grant.response().usedActions()).isEqualTo(3);
+        assertThat(grant.response().remainingActions())
+            .isEqualTo(DemoSessionService.ACTION_LIMIT - 5);
+        verify(sessionRepository, never()).recordAdmission(any());
+        verify(sessionRepository, never()).save(any());
+        verify(accessTokenRepository).save(any(DemoAccessToken.class));
+    }
+
     private static DemoSession activeSession(
         OffsetDateTime expiry,
         int usedActions,

@@ -109,6 +109,23 @@ public class DemoSessionService {
     }
 
     @Transactional(isolation = Isolation.SERIALIZABLE)
+    public SessionGrant renew(String rawResumeCookie) {
+        if (rawResumeCookie == null || rawResumeCookie.isBlank()) {
+            throw DemoSessionException.sessionExpired();
+        }
+        String resumeDigest = tokenDigester.digest(rawResumeCookie);
+        DemoSession activeSession = sessionRepository.findActiveByResumeDigest(resumeDigest)
+            .orElseThrow(DemoSessionException::sessionExpired);
+        DemoSession lockedSession = sessionRepository.lockActiveSession(activeSession.getId())
+            .orElseThrow(DemoSessionException::sessionExpired);
+        sessionRepository.reclaimExpiredReservations(
+            lockedSession, sessionRepository.databaseNow());
+        metrics.sessionResumed();
+        metrics.activeSessions(sessionRepository.activeSessionCount());
+        return issueAccessToken(lockedSession, rawResumeCookie);
+    }
+
+    @Transactional(isolation = Isolation.SERIALIZABLE)
     public void logout(UUID sessionId) {
         sessionRepository.lockActiveSession(sessionId)
             .orElseThrow(DemoSessionException::sessionExpired);
