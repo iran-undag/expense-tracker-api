@@ -103,12 +103,12 @@ class DemoQuotaConcurrencyTest {
     @Test
     void parallelMutationsConsumeExactlyTheLimitAndRejectTheNextAction() throws Exception {
         TestSession session = createSession("198.51.100.72");
-        CountDownLatch ready = new CountDownLatch(20);
+        CountDownLatch ready = new CountDownLatch(15);
         CountDownLatch start = new CountDownLatch(1);
-        ExecutorService executor = Executors.newFixedThreadPool(20);
+        ExecutorService executor = Executors.newFixedThreadPool(15);
         try {
             List<Callable<Integer>> tasks = new ArrayList<>();
-            for (int index = 0; index < 20; index++) {
+            for (int index = 0; index < 15; index++) {
                 int expenseIndex = index;
                 tasks.add(() -> {
                     ready.countDown();
@@ -126,23 +126,23 @@ class DemoQuotaConcurrencyTest {
             ready.await();
             start.countDown();
             for (Future<Integer> future : futures) {
-                assertThat(future.get()).isBetween(1, 20);
+                assertThat(future.get()).isBetween(1, 15);
             }
         } finally {
             executor.shutdownNow();
         }
 
-        assertThat(usedActions(session.principal().sessionId())).isEqualTo(20);
-        assertThat(totalActions(session.principal().sessionId())).isEqualTo(20);
-        assertThat(ownedExpenseCount(session.principal().sessionId())).isEqualTo(20);
+        assertThat(usedActions(session.principal().sessionId())).isEqualTo(15);
+        assertThat(totalActions(session.principal().sessionId())).isEqualTo(15);
+        assertThat(ownedExpenseCount(session.principal().sessionId())).isEqualTo(15);
         assertThatThrownBy(() -> inDemoRealm(() -> mutationExecutor.execute(
             session.authentication(),
             1,
             () -> expenseService.saveExpense(session.scope(), expense("Over limit"))
         ))).isInstanceOfSatisfying(DemoSessionException.class,
             exception -> assertThat(exception.code()).isEqualTo("DEMO_QUOTA_EXHAUSTED"));
-        assertThat(totalActions(session.principal().sessionId())).isEqualTo(20);
-        assertThat(ownedExpenseCount(session.principal().sessionId())).isEqualTo(20);
+        assertThat(totalActions(session.principal().sessionId())).isEqualTo(15);
+        assertThat(ownedExpenseCount(session.principal().sessionId())).isEqualTo(15);
     }
 
     @Test
@@ -164,16 +164,16 @@ class DemoQuotaConcurrencyTest {
 
         int generated = inDemoRealm(() -> recurringExpenseService.generateDueExpenses(session.scope(), today));
 
-        assertThat(generated).isEqualTo(20);
-        assertThat(totalActions(session.principal().sessionId())).isEqualTo(20);
-        assertThat(ownedExpenseCount(session.principal().sessionId())).isEqualTo(20);
+        assertThat(generated).isEqualTo(15);
+        assertThat(totalActions(session.principal().sessionId())).isEqualTo(15);
+        assertThat(ownedExpenseCount(session.principal().sessionId())).isEqualTo(15);
         assertThat(jdbc.queryForObject(
             "SELECT next_run_date FROM recurring_expense WHERE id = ?",
             LocalDate.class,
             rule.getId()
-        )).isEqualTo(firstOccurrence.plusDays(20));
+        )).isEqualTo(firstOccurrence.plusDays(15));
         assertThat(inDemoRealm(() -> recurringExpenseService.generateDueExpenses(session.scope(), today))).isZero();
-        assertThat(totalActions(session.principal().sessionId())).isEqualTo(20);
+        assertThat(totalActions(session.principal().sessionId())).isEqualTo(15);
     }
 
     private TestSession createSession(String address) {

@@ -53,7 +53,7 @@ class DemoSessionControllerTest {
 
     @Test
     void createsSessionWithNoStoreResponseAndSecureResumeCookie() throws Exception {
-        when(facade.createOrResume(null, "203.0.113.8")).thenReturn(grant("resume-token", 21_600));
+        when(facade.createOrResume(null, "203.0.113.8")).thenReturn(grant("resume-token", 3_600));
 
         mockMvc.perform(post("/api/demo/sessions").with(request -> {
                 request.setRemoteAddr("203.0.113.8");
@@ -65,15 +65,15 @@ class DemoSessionControllerTest {
                 org.hamcrest.Matchers.allOf(
                     org.hamcrest.Matchers.containsString("demo_resume=resume-token"),
                     org.hamcrest.Matchers.containsString("Path=/api/demo/sessions"),
-                    org.hamcrest.Matchers.containsString("Max-Age=21600"),
+                    org.hamcrest.Matchers.containsString("Max-Age=3600"),
                     org.hamcrest.Matchers.containsString("Secure"),
                     org.hamcrest.Matchers.containsString("HttpOnly"),
                     org.hamcrest.Matchers.containsString("SameSite=Lax")
                 )))
             .andExpect(jsonPath("$.accessToken").value("dmo_access-token"))
-            .andExpect(jsonPath("$.actionLimit").value(20))
+            .andExpect(jsonPath("$.actionLimit").value(15))
             .andExpect(jsonPath("$.usedActions").value(3))
-            .andExpect(jsonPath("$.remainingActions").value(17));
+            .andExpect(jsonPath("$.remainingActions").value(12));
     }
 
     @Test
@@ -127,7 +127,7 @@ class DemoSessionControllerTest {
     void logoutClearsCookieOnlyAfterFacadeReturns() throws Exception {
         UUID sessionId = UUID.fromString("11111111-1111-1111-1111-111111111111");
         DemoPrincipal principal = new DemoPrincipal(sessionId, "demo-shared-account", "demo:" + sessionId,
-            NOW.plusHours(6));
+            NOW.plusHours(1));
 
         mockMvc.perform(delete("/api/demo/sessions/current")
                 .principal(new TestingAuthenticationToken(principal, null)))
@@ -167,10 +167,10 @@ class DemoSessionControllerTest {
             new DemoSessionResponse(
                 "dmo_access-token",
                 NOW.plusMinutes(15),
-                NOW.plusHours(6),
-                20,
+                NOW.plusHours(1),
+                15,
                 3,
-                17
+                12
             ),
             resumeToken,
             maxAge

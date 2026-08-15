@@ -89,6 +89,18 @@ class DemoSessionConcurrencyTest {
     }
 
     @Test
+    void createsOneHourSessionWithFifteenActions() {
+        DemoSessionService.SessionGrant grant = facade.createOrResume(null, "198.51.100.40");
+        UUID sessionId = sessionIdForAccessToken(grant.response().accessToken());
+
+        assertThat(grant.response().actionLimit()).isEqualTo(15);
+        assertThat(jdbc.queryForObject("""
+            SELECT DATEDIFF(SECOND, created_at, expires_at)
+            FROM demo_session WHERE id = ?
+            """, Integer.class, sessionId)).isEqualTo(3_600);
+    }
+
+    @Test
     void serializableAdmissionAllowsExactlyTwoOfThreeConcurrentSessions() throws Exception {
         CountDownLatch ready = new CountDownLatch(3);
         CountDownLatch start = new CountDownLatch(1);
