@@ -1,7 +1,6 @@
 package com.example.expensetracker.demo.session;
 
 import com.example.expensetracker.demo.security.DemoPrincipal;
-import jakarta.servlet.http.HttpServletRequest;
 import java.time.Duration;
 import java.util.UUID;
 import org.springframework.beans.factory.annotation.Value;
@@ -38,11 +37,21 @@ public class DemoSessionController {
 
     @PostMapping
     public ResponseEntity<DemoSessionResponse> createOrResume(
-        @CookieValue(name = RESUME_COOKIE, required = false) String rawResumeCookie,
-        HttpServletRequest request
+        @CookieValue(name = RESUME_COOKIE, required = false) String rawResumeCookie
     ) {
-        DemoSessionService.SessionGrant grant =
-            facade.createOrResume(rawResumeCookie, request.getRemoteAddr());
+        return grantResponse(facade.createOrResume(rawResumeCookie));
+    }
+
+    @PostMapping("/renew")
+    public ResponseEntity<DemoSessionResponse> renew(
+        @CookieValue(name = RESUME_COOKIE, required = false) String rawResumeCookie
+    ) {
+        return grantResponse(facade.renew(rawResumeCookie));
+    }
+
+    private ResponseEntity<DemoSessionResponse> grantResponse(
+        DemoSessionService.SessionGrant grant
+    ) {
         return ResponseEntity.ok()
             .cacheControl(CacheControl.noStore())
             .header(HttpHeaders.SET_COOKIE, resumeCookie(grant).toString())

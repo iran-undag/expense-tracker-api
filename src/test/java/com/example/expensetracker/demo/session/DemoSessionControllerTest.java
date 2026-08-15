@@ -53,7 +53,7 @@ class DemoSessionControllerTest {
 
     @Test
     void createsSessionWithNoStoreResponseAndSecureResumeCookie() throws Exception {
-        when(facade.createOrResume(null, "203.0.113.8")).thenReturn(grant("resume-token", 3_600));
+        when(facade.createOrResume(null)).thenReturn(grant("resume-token", 3_600));
 
         mockMvc.perform(post("/api/demo/sessions").with(request -> {
                 request.setRemoteAddr("203.0.113.8");
@@ -71,14 +71,14 @@ class DemoSessionControllerTest {
                     org.hamcrest.Matchers.containsString("SameSite=Lax")
                 )))
             .andExpect(jsonPath("$.accessToken").value("dmo_access-token"))
-            .andExpect(jsonPath("$.actionLimit").value(15))
+            .andExpect(jsonPath("$.actionLimit").value(10))
             .andExpect(jsonPath("$.usedActions").value(3))
-            .andExpect(jsonPath("$.remainingActions").value(12));
+            .andExpect(jsonPath("$.remainingActions").value(7));
     }
 
     @Test
-    void passesOnlyTheResumeCookieAndServletRemoteAddressToTheFacade() throws Exception {
-        when(facade.createOrResume("resume-token", "2001:db8:0:0:0:0:0:1"))
+    void passesOnlyTheResumeCookieToTheFacade() throws Exception {
+        when(facade.createOrResume("resume-token"))
             .thenReturn(grant("renewed-resume-token", 10_800));
 
         mockMvc.perform(post("/api/demo/sessions")
@@ -90,12 +90,12 @@ class DemoSessionControllerTest {
                 }))
             .andExpect(status().isOk());
 
-        verify(facade).createOrResume("resume-token", "2001:db8:0:0:0:0:0:1");
+        verify(facade).createOrResume("resume-token");
     }
 
     @Test
     void returnsStableCapacityErrorAndRetryAfter() throws Exception {
-        when(facade.createOrResume(any(), any()))
+        when(facade.createOrResume(any()))
             .thenThrow(DemoSessionException.capacityReached(73));
 
         mockMvc.perform(post("/api/demo/sessions"))
@@ -107,9 +107,9 @@ class DemoSessionControllerTest {
 
     @Test
     void returnsStableExpiredAndUnavailableErrors() throws Exception {
-        when(facade.createOrResume("expired", "127.0.0.1"))
+        when(facade.createOrResume("expired"))
             .thenThrow(DemoSessionException.sessionExpired());
-        when(facade.createOrResume("unavailable", "127.0.0.1"))
+        when(facade.createOrResume("unavailable"))
             .thenThrow(DemoSessionException.serviceUnavailable(new IllegalStateException("database")));
 
         mockMvc.perform(post("/api/demo/sessions")
@@ -121,6 +121,35 @@ class DemoSessionControllerTest {
                 .cookie(new jakarta.servlet.http.Cookie("demo_resume", "unavailable")))
             .andExpect(status().isServiceUnavailable())
             .andExpect(jsonPath("$.code").value("DEMO_SERVICE_UNAVAILABLE"));
+    }
+
+    @Test
+    void renewsOnlyFromResumeCookieWithNoStoreResponse() throws Exception {
+        when(facade.renew("resume-token")).thenReturn(grant("resume-token", 2_400));
+
+        mockMvc.perform(post("/api/demo/sessions/renew")
+                .cookie(new jakarta.servlet.http.Cookie("demo_resume", "resume-token")))
+            .andExpect(status().isOk())
+            .andExpect(header().string(HttpHeaders.CACHE_CONTROL, "no-store"))
+            .andExpect(header().string(HttpHeaders.SET_COOKIE,
+                org.hamcrest.Matchers.allOf(
+                    org.hamcrest.Matchers.containsString("demo_resume=resume-token"),
+                    org.hamcrest.Matchers.containsString("Max-Age=2400")
+                )))
+            .andExpect(jsonPath("$.actionLimit").value(10))
+            .andExpect(jsonPath("$.remainingActions").value(7));
+
+        verify(facade).renew("resume-token");
+    }
+
+    @Test
+    void renewalWithoutCookieReturnsTerminalExpiry() throws Exception {
+        when(facade.renew(null)).thenThrow(DemoSessionException.sessionExpired());
+
+        mockMvc.perform(post("/api/demo/sessions/renew"))
+            .andExpect(status().isUnauthorized())
+            .andExpect(header().string(HttpHeaders.CACHE_CONTROL, "no-store"))
+            .andExpect(jsonPath("$.code").value("DEMO_SESSION_EXPIRED"));
     }
 
     @Test
@@ -168,9 +197,9 @@ class DemoSessionControllerTest {
                 "dmo_access-token",
                 NOW.plusMinutes(15),
                 NOW.plusHours(1),
-                15,
+                10,
                 3,
-                12
+                7
             ),
             resumeToken,
             maxAge

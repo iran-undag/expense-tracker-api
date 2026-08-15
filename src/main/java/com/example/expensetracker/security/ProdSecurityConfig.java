@@ -52,7 +52,8 @@ public class ProdSecurityConfig {
                 .requestMatchers("/swagger-ui/**", "/v3/api-docs/**", "/swagger-ui.html").permitAll()
                 .requestMatchers("/actuator/health", "/actuator/health/**",
                     "/actuator/info", "/actuator/prometheus").permitAll()
-                .requestMatchers(HttpMethod.POST, "/api/demo/sessions").permitAll()
+                .requestMatchers(HttpMethod.POST,
+                    "/api/demo/sessions", "/api/demo/sessions/renew").permitAll()
                 .anyRequest().authenticated()
             )
             .addFilterBefore(correlationIdFilter, UsernamePasswordAuthenticationFilter.class)

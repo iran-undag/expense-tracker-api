@@ -13,9 +13,13 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(ProdSecurityProbeController.class)
@@ -50,6 +54,20 @@ class ProdSecurityConfigTest {
         mockMvc.perform(get("/private-probe"))
                 .andExpect(status().isUnauthorized());
     }
+
+    @Test
+    void allowsUnauthenticatedDemoCreationAndRenewal() throws Exception {
+        mockMvc.perform(post("/api/demo/sessions"))
+            .andExpect(status().isOk());
+        mockMvc.perform(post("/api/demo/sessions/renew"))
+            .andExpect(status().isOk());
+    }
+
+    @Test
+    void protectsDemoLogout() throws Exception {
+        mockMvc.perform(delete("/api/demo/sessions/current"))
+            .andExpect(status().isUnauthorized());
+    }
 }
 
 @RestController
@@ -58,5 +76,15 @@ class ProdSecurityProbeController {
     @GetMapping({"/actuator/health/liveness", "/actuator/health/readiness", "/private-probe"})
     ResponseEntity<Void> get() {
         return ResponseEntity.ok().build();
+    }
+
+    @PostMapping({"/api/demo/sessions", "/api/demo/sessions/renew"})
+    ResponseEntity<Void> post() {
+        return ResponseEntity.ok().build();
+    }
+
+    @DeleteMapping("/api/demo/sessions/current")
+    ResponseEntity<Void> delete() {
+        return ResponseEntity.noContent().build();
     }
 }
