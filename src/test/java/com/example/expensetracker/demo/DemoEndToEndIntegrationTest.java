@@ -112,6 +112,10 @@ class DemoEndToEndIntegrationTest {
                 .header("Authorization", "Bearer " + firstToken))
             .andExpect(status().isNoContent());
 
+        mockMvc.perform(get("/api/expenses")
+                .header("Authorization", "Bearer " + firstToken))
+            .andExpect(status().isUnauthorized());
+
         String replacementToken = createDemoSession("198.51.100.94");
         assertThat(replacementToken).startsWith("dmo_").isNotEqualTo(secondToken);
     }

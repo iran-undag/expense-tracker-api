@@ -55,7 +55,6 @@ public class DemoSessionService {
     )
     public SessionGrant createOrResume(String rawResumeCookie, String remoteAddress) {
         Optional<DemoSession> cookieSession = findCookieSession(rawResumeCookie);
-        metrics.cleanedSessions(sessionRepository.deleteExpiredData());
 
         if (cookieSession.isPresent()
             && sessionRepository.findActiveByResumeDigest(tokenDigester.digest(rawResumeCookie)).isEmpty()) {
@@ -112,7 +111,6 @@ public class DemoSessionService {
     public void logout(UUID sessionId) {
         sessionRepository.lockActiveSession(sessionId)
             .orElseThrow(DemoSessionException::sessionExpired);
-        sessionRepository.deleteOwnedData(sessionId);
         sessionRepository.markLoggedOut(
             sessionId,
             tokenDigester.digest("logged-out:" + UUID.randomUUID())
@@ -138,7 +136,6 @@ public class DemoSessionService {
     private SessionGrant issueAccessToken(DemoSession session, String resumeToken) {
         OffsetDateTime now = sessionRepository.databaseNow();
         if (!now.isBefore(session.getExpiresAt())) {
-            metrics.cleanedSessions(sessionRepository.deleteExpiredData());
             throw DemoSessionException.sessionExpired();
         }
         OffsetDateTime accessTokenExpiresAt = min(now.plusMinutes(ACCESS_TOKEN_MINUTES), session.getExpiresAt());

@@ -2,12 +2,14 @@ package com.example.expensetracker.demo.session;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.awaitility.Awaitility.await;
 
 import com.example.expensetracker.demo.security.DemoTokenDigester;
 import com.example.expensetracker.demo.seed.DemoDatabaseInitializer;
 import com.example.expensetracker.persistence.DataRealm;
 import com.example.expensetracker.persistence.DataRealmExecutor;
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
@@ -148,7 +150,8 @@ class DemoSessionConcurrencyTest {
         assertThatThrownBy(() -> facade.createOrResume(expired.resumeToken(), "198.51.100.1"))
             .isInstanceOfSatisfying(DemoSessionException.class,
                 exception -> assertThat(exception.code()).isEqualTo("DEMO_SESSION_EXPIRED"));
-        assertThat(sessionCount(expiredSessionId)).isZero();
+        await().atMost(Duration.ofSeconds(5)).untilAsserted(
+            () -> assertThat(sessionCount(expiredSessionId)).isZero());
 
         facade.createOrResume(null, "198.51.100.2");
         facade.createOrResume(null, "198.51.100.3");
@@ -184,11 +187,11 @@ class DemoSessionConcurrencyTest {
 
         facade.createOrResume(created.resumeToken(), "198.51.100.31");
 
-        assertThat(jdbc.queryForObject(
+        await().atMost(Duration.ofSeconds(5)).untilAsserted(() -> assertThat(jdbc.queryForObject(
             "SELECT COUNT(*) FROM demo_access_token WHERE token_digest = ?",
             Integer.class,
             expiredDigest
-        )).isZero();
+        )).isZero());
         assertThat(ownedRowCount("demo_access_token", sessionId)).isEqualTo(2);
     }
 
@@ -220,20 +223,20 @@ class DemoSessionConcurrencyTest {
     }
 
     @Test
-    void logoutDeletesOwnedRowsInOrderAndMarksSessionLoggedOut() {
+    void logoutInvalidatesSessionAndDefersOwnedDataDeletion() {
         DemoSessionService.SessionGrant grant = facade.createOrResume(null, "198.51.100.21");
         UUID sessionId = sessionIdForAccessToken(grant.response().accessToken());
         insertOwnedRows(sessionId);
 
         facade.logout(sessionId);
 
-        assertThat(ownedRowCount("chat_identity_mapping", sessionId)).isZero();
-        assertThat(ownedRowCount("demo_quota_reservation", sessionId)).isZero();
-        assertThat(ownedRowCount("recurring_expense", sessionId)).isZero();
-        assertThat(ownedRowCount("expense", sessionId)).isZero();
-        assertThat(ownedRowCount("budget", sessionId)).isZero();
-        assertThat(ownedRowCount("expense_category", sessionId)).isZero();
-        assertThat(ownedRowCount("demo_access_token", sessionId)).isZero();
+        assertThat(ownedRowCount("chat_identity_mapping", sessionId)).isEqualTo(1);
+        assertThat(ownedRowCount("demo_quota_reservation", sessionId)).isEqualTo(1);
+        assertThat(ownedRowCount("recurring_expense", sessionId)).isEqualTo(1);
+        assertThat(ownedRowCount("expense", sessionId)).isEqualTo(1);
+        assertThat(ownedRowCount("budget", sessionId)).isEqualTo(1);
+        assertThat(ownedRowCount("expense_category", sessionId)).isEqualTo(1);
+        assertThat(ownedRowCount("demo_access_token", sessionId)).isEqualTo(1);
         assertThat(jdbc.queryForObject("SELECT status FROM demo_session WHERE id = ?", String.class, sessionId))
             .isEqualTo("LOGGED_OUT");
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM demo_session WHERE id = ? AND expires_at <= SYSDATETIMEOFFSET()",

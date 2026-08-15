@@ -3,7 +3,7 @@ package com.example.expensetracker.demo.session;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -58,7 +58,7 @@ class DemoSessionServiceTest {
         assertThatThrownBy(() -> service.createOrResume("resume-token", "203.0.113.8"))
             .isInstanceOfSatisfying(DemoSessionException.class,
                 exception -> assertThat(exception.code()).isEqualTo("DEMO_SESSION_EXPIRED"));
-        verify(sessionRepository, times(2)).deleteExpiredData();
+        verify(sessionRepository, never()).deleteExpiredData();
         verifyNoInteractions(accessTokenRepository);
     }
 }

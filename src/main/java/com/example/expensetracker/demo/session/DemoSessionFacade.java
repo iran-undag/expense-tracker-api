@@ -16,17 +16,20 @@ public class DemoSessionFacade {
     private final DataRealmExecutor realmExecutor;
     private final DemoSessionService demoSessionService;
     private final DemoMetrics metrics;
+    private final DemoSessionCleanupScheduler cleanupScheduler;
 
     public DemoSessionFacade(
         DemoDatabaseInitializer demoDatabaseInitializer,
         DataRealmExecutor realmExecutor,
         DemoSessionService demoSessionService,
-        DemoMetrics metrics
+        DemoMetrics metrics,
+        DemoSessionCleanupScheduler cleanupScheduler
     ) {
         this.demoDatabaseInitializer = demoDatabaseInitializer;
         this.realmExecutor = realmExecutor;
         this.demoSessionService = demoSessionService;
         this.metrics = metrics;
+        this.cleanupScheduler = cleanupScheduler;
     }
 
     public DemoSessionService.SessionGrant createOrResume(String rawResumeCookie) {
@@ -34,8 +37,10 @@ public class DemoSessionFacade {
     }
 
     public DemoSessionService.SessionGrant createOrResume(String rawResumeCookie, String remoteAddress) {
+        boolean databaseReady = false;
         try {
             ensureMigrated();
+            databaseReady = true;
             return realmExecutor.inRealm(DataRealm.DEMO,
                 () -> demoSessionService.createOrResume(rawResumeCookie, remoteAddress));
         } catch (DemoSessionException exception) {
@@ -46,6 +51,10 @@ public class DemoSessionFacade {
         } catch (RuntimeException exception) {
             metrics.databaseFailure();
             throw DemoSessionException.serviceUnavailable(exception);
+        } finally {
+            if (databaseReady) {
+                cleanupScheduler.schedule();
+            }
         }
     }
 
