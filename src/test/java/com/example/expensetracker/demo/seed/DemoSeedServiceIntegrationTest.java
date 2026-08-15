@@ -261,7 +261,7 @@ class DemoSeedServiceIntegrationTest {
         jdbc.update("DELETE FROM expense_category WHERE is_demo_seed = 1 OR demo_session_id IS NOT NULL");
         jdbc.update("DELETE FROM demo_access_token");
         jdbc.update("DELETE FROM demo_session");
-        jdbc.update("DELETE FROM demo_session_attempt");
+        jdbc.update("DELETE FROM demo_session_admission");
         jdbc.update("DELETE FROM demo_seed_state");
     }
 

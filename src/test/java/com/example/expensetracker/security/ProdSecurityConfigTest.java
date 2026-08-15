@@ -22,8 +22,12 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@WebMvcTest(ProdSecurityProbeController.class)
-@Import({ProdSecurityConfig.class, CorrelationIdFilter.class})
+@WebMvcTest(ProdSecurityConfigTest.ProdSecurityProbeController.class)
+@Import({
+    ProdSecurityConfig.class,
+    CorrelationIdFilter.class,
+    ProdSecurityConfigTest.ProdSecurityProbeController.class
+})
 @ActiveProfiles("prod")
 @TestPropertySource(properties = "demo.token-hmac-key=0123456789abcdef0123456789abcdef")
 class ProdSecurityConfigTest {
@@ -68,23 +72,23 @@ class ProdSecurityConfigTest {
         mockMvc.perform(delete("/api/demo/sessions/current"))
             .andExpect(status().isUnauthorized());
     }
-}
 
-@RestController
-class ProdSecurityProbeController {
+    @RestController
+    static class ProdSecurityProbeController {
 
-    @GetMapping({"/actuator/health/liveness", "/actuator/health/readiness", "/private-probe"})
-    ResponseEntity<Void> get() {
-        return ResponseEntity.ok().build();
-    }
+        @GetMapping({"/actuator/health/liveness", "/actuator/health/readiness", "/private-probe"})
+        ResponseEntity<Void> get() {
+            return ResponseEntity.ok().build();
+        }
 
-    @PostMapping({"/api/demo/sessions", "/api/demo/sessions/renew"})
-    ResponseEntity<Void> post() {
-        return ResponseEntity.ok().build();
-    }
+        @PostMapping({"/api/demo/sessions", "/api/demo/sessions/renew"})
+        ResponseEntity<Void> post() {
+            return ResponseEntity.ok().build();
+        }
 
-    @DeleteMapping("/api/demo/sessions/current")
-    ResponseEntity<Void> delete() {
-        return ResponseEntity.noContent().build();
+        @DeleteMapping("/api/demo/sessions/current")
+        ResponseEntity<Void> delete() {
+            return ResponseEntity.noContent().build();
+        }
     }
 }

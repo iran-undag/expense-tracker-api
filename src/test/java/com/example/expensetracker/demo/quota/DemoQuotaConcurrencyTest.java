@@ -103,12 +103,12 @@ class DemoQuotaConcurrencyTest {
     @Test
     void parallelMutationsConsumeExactlyTheLimitAndRejectTheNextAction() throws Exception {
         TestSession session = createSession("198.51.100.72");
-        CountDownLatch ready = new CountDownLatch(15);
+        CountDownLatch ready = new CountDownLatch(10);
         CountDownLatch start = new CountDownLatch(1);
-        ExecutorService executor = Executors.newFixedThreadPool(15);
+        ExecutorService executor = Executors.newFixedThreadPool(10);
         try {
             List<Callable<Integer>> tasks = new ArrayList<>();
-            for (int index = 0; index < 15; index++) {
+            for (int index = 0; index < 10; index++) {
                 int expenseIndex = index;
                 tasks.add(() -> {
                     ready.countDown();
@@ -126,23 +126,23 @@ class DemoQuotaConcurrencyTest {
             ready.await();
             start.countDown();
             for (Future<Integer> future : futures) {
-                assertThat(future.get()).isBetween(1, 15);
+                assertThat(future.get()).isBetween(1, 10);
             }
         } finally {
             executor.shutdownNow();
         }
 
-        assertThat(usedActions(session.principal().sessionId())).isEqualTo(15);
-        assertThat(totalActions(session.principal().sessionId())).isEqualTo(15);
-        assertThat(ownedExpenseCount(session.principal().sessionId())).isEqualTo(15);
+        assertThat(usedActions(session.principal().sessionId())).isEqualTo(10);
+        assertThat(totalActions(session.principal().sessionId())).isEqualTo(10);
+        assertThat(ownedExpenseCount(session.principal().sessionId())).isEqualTo(10);
         assertThatThrownBy(() -> inDemoRealm(() -> mutationExecutor.execute(
             session.authentication(),
             1,
             () -> expenseService.saveExpense(session.scope(), expense("Over limit"))
         ))).isInstanceOfSatisfying(DemoSessionException.class,
             exception -> assertThat(exception.code()).isEqualTo("DEMO_QUOTA_EXHAUSTED"));
-        assertThat(totalActions(session.principal().sessionId())).isEqualTo(15);
-        assertThat(ownedExpenseCount(session.principal().sessionId())).isEqualTo(15);
+        assertThat(totalActions(session.principal().sessionId())).isEqualTo(10);
+        assertThat(ownedExpenseCount(session.principal().sessionId())).isEqualTo(10);
     }
 
     @Test
@@ -164,20 +164,20 @@ class DemoQuotaConcurrencyTest {
 
         int generated = inDemoRealm(() -> recurringExpenseService.generateDueExpenses(session.scope(), today));
 
-        assertThat(generated).isEqualTo(15);
-        assertThat(totalActions(session.principal().sessionId())).isEqualTo(15);
-        assertThat(ownedExpenseCount(session.principal().sessionId())).isEqualTo(15);
+        assertThat(generated).isEqualTo(10);
+        assertThat(totalActions(session.principal().sessionId())).isEqualTo(10);
+        assertThat(ownedExpenseCount(session.principal().sessionId())).isEqualTo(10);
         assertThat(jdbc.queryForObject(
             "SELECT next_run_date FROM recurring_expense WHERE id = ?",
             LocalDate.class,
             rule.getId()
-        )).isEqualTo(firstOccurrence.plusDays(15));
+        )).isEqualTo(firstOccurrence.plusDays(10));
         assertThat(inDemoRealm(() -> recurringExpenseService.generateDueExpenses(session.scope(), today))).isZero();
-        assertThat(totalActions(session.principal().sessionId())).isEqualTo(15);
+        assertThat(totalActions(session.principal().sessionId())).isEqualTo(10);
     }
 
     private TestSession createSession(String address) {
-        var grant = sessionFacade.createOrResume(null, address);
+        var grant = sessionFacade.createOrResume(null);
         UUID sessionId = jdbc.queryForObject("""
             SELECT demo_session_id FROM demo_access_token WHERE token_digest = ?
             """, UUID.class, digester.digest(grant.response().accessToken()));
@@ -244,7 +244,7 @@ class DemoQuotaConcurrencyTest {
         jdbc.update("DELETE FROM expense_category WHERE demo_session_id IS NOT NULL");
         jdbc.update("DELETE FROM demo_access_token");
         jdbc.update("DELETE FROM demo_session");
-        jdbc.update("DELETE FROM demo_session_attempt");
+        jdbc.update("DELETE FROM demo_session_admission");
         jdbc.update("DELETE FROM demo_seed_state");
     }
 

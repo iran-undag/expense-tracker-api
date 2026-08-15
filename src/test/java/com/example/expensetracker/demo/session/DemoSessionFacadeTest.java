@@ -44,7 +44,7 @@ class DemoSessionFacadeTest {
         when(realmExecutor.inRealm(
             eq(DataRealm.DEMO), anySessionGrantSupplier())).thenReturn(grant);
 
-        assertThat(facade.createOrResume(null, "203.0.113.8")).isSameAs(grant);
+        assertThat(facade.createOrResume(null)).isSameAs(grant);
 
         verify(cleanupScheduler).schedule();
     }
@@ -55,7 +55,7 @@ class DemoSessionFacadeTest {
             eq(DataRealm.DEMO), anySessionGrantSupplier()))
             .thenThrow(DemoSessionException.sessionExpired());
 
-        assertThatThrownBy(() -> facade.createOrResume("expired", "203.0.113.8"))
+        assertThatThrownBy(() -> facade.createOrResume("expired"))
             .isInstanceOfSatisfying(DemoSessionException.class,
                 exception -> assertThat(exception.code()).isEqualTo("DEMO_SESSION_EXPIRED"));
 
@@ -67,7 +67,7 @@ class DemoSessionFacadeTest {
         doThrow(new IllegalStateException("database unavailable"))
             .when(initializer).ensureMigrated();
 
-        assertThatThrownBy(() -> facade.createOrResume(null, "203.0.113.8"))
+        assertThatThrownBy(() -> facade.createOrResume(null))
             .isInstanceOfSatisfying(DemoSessionException.class,
                 exception -> assertThat(exception.code()).isEqualTo("DEMO_SERVICE_UNAVAILABLE"));
 

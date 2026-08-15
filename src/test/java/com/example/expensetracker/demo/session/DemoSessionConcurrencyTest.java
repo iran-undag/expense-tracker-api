@@ -6,12 +6,9 @@ import static org.awaitility.Awaitility.await;
 
 import com.example.expensetracker.demo.security.DemoTokenDigester;
 import com.example.expensetracker.demo.seed.DemoDatabaseInitializer;
-import com.example.expensetracker.persistence.DataRealm;
-import com.example.expensetracker.persistence.DataRealmExecutor;
 import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.OffsetDateTime;
-import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -67,9 +64,6 @@ class DemoSessionConcurrencyTest {
     private DemoDatabaseInitializer databaseInitializer;
 
     @Autowired
-    private DataRealmExecutor realmExecutor;
-
-    @Autowired
     private DemoTokenDigester digester;
 
     @Autowired
@@ -88,11 +82,11 @@ class DemoSessionConcurrencyTest {
     }
 
     @Test
-    void createsOneHourSessionWithFifteenActions() {
-        DemoSessionService.SessionGrant grant = facade.createOrResume(null, "198.51.100.40");
+    void createsOneHourSessionWithTenActions() {
+        DemoSessionService.SessionGrant grant = facade.createOrResume(null);
         UUID sessionId = sessionIdForAccessToken(grant.response().accessToken());
 
-        assertThat(grant.response().actionLimit()).isEqualTo(15);
+        assertThat(grant.response().actionLimit()).isEqualTo(10);
         assertThat(jdbc.queryForObject("""
             SELECT DATEDIFF(SECOND, created_at, expires_at)
             FROM demo_session WHERE id = ?
@@ -101,78 +95,167 @@ class DemoSessionConcurrencyTest {
 
     @Test
     void serializableAdmissionAllowsExactlyTwoOfThreeConcurrentSessions() throws Exception {
-        CountDownLatch ready = new CountDownLatch(3);
-        CountDownLatch start = new CountDownLatch(1);
-        ExecutorService executor = Executors.newFixedThreadPool(3);
-        try {
-            List<Callable<DemoSessionResult>> tasks = new ArrayList<>();
-            for (int index = 0; index < 3; index++) {
-                int addressSuffix = index;
-                tasks.add(() -> {
-                    ready.countDown();
-                    start.await();
-                    try {
-                        facade.createOrResume(null, "203.0.113." + addressSuffix);
-                        return new DemoSessionResult(true, false);
-                    } catch (DemoSessionException exception) {
-                        return new DemoSessionResult(false,
-                            exception.code().equals("DEMO_CAPACITY_REACHED"));
-                    }
-                });
-            }
+        List<DemoSessionResult> results = runConcurrentCreations(3);
 
-            List<Future<DemoSessionResult>> futures = tasks.stream().map(executor::submit).toList();
-            ready.await();
-            start.countDown();
-            List<DemoSessionResult> results = new ArrayList<>();
-            for (Future<DemoSessionResult> future : futures) {
-                results.add(future.get());
-            }
+        assertThat(results).filteredOn(DemoSessionResult::created).hasSize(2);
+        assertThat(results).filteredOn(DemoSessionResult::capacityRejected).hasSize(1);
+        assertThat(activeSessionCount()).isEqualTo(2);
+        assertThat(admissionCount()).isEqualTo(2);
+    }
 
-            assertThat(results).filteredOn(DemoSessionResult::created).hasSize(2);
-            assertThat(results).filteredOn(DemoSessionResult::capacityRejected).hasSize(1);
-            assertThat(activeSessionCount()).isEqualTo(2);
-        } finally {
-            executor.shutdownNow();
+    @Test
+    void allowsFourSuccessfulCreationsPerHourAndDoesNotCountRejection() {
+        for (int index = 0; index < 4; index++) {
+            DemoSessionService.SessionGrant grant = facade.createOrResume(null);
+            facade.logout(sessionIdForAccessToken(grant.response().accessToken()));
         }
+
+        assertThat(admissionCount()).isEqualTo(4);
+        assertThatThrownBy(() -> facade.createOrResume(null))
+            .isInstanceOfSatisfying(DemoSessionException.class, exception -> {
+                assertThat(exception.code()).isEqualTo("DEMO_CAPACITY_REACHED");
+                assertThat(exception.retryAfterSeconds()).isBetween(1L, 3_600L);
+            });
+        assertThat(admissionCount()).isEqualTo(4);
+    }
+
+    @Test
+    void admitsNextSessionWhenOldestHourlyAdmissionAgesOut() {
+        for (int index = 0; index < 4; index++) {
+            DemoSessionService.SessionGrant grant = facade.createOrResume(null);
+            facade.logout(sessionIdForAccessToken(grant.response().accessToken()));
+        }
+        jdbc.update("""
+            UPDATE demo_session_admission
+            SET admitted_at = DATEADD(SECOND, -3601, SYSDATETIMEOFFSET())
+            WHERE id = (SELECT MIN(id) FROM demo_session_admission)
+            """);
+
+        facade.createOrResume(null);
+
+        assertThat(admissionCount()).isEqualTo(5);
+    }
+
+    @Test
+    void allowsTwelfthDailyAdmissionAndRejectsThirteenth() {
+        for (int hoursAgo = 2; hoursAgo <= 12; hoursAgo++) {
+            insertAdmissionHoursAgo(hoursAgo);
+        }
+
+        DemoSessionService.SessionGrant twelfth = facade.createOrResume(null);
+        facade.logout(sessionIdForAccessToken(twelfth.response().accessToken()));
+
+        assertThat(admissionCount()).isEqualTo(12);
+        assertThatThrownBy(() -> facade.createOrResume(null))
+            .isInstanceOfSatisfying(DemoSessionException.class,
+                exception -> assertThat(exception.code()).isEqualTo("DEMO_CAPACITY_REACHED"));
+        assertThat(admissionCount()).isEqualTo(12);
+    }
+
+    @Test
+    void returnsLongerDailyRetryWhenBothWindowsAreFull() {
+        for (int index = 0; index < 4; index++) {
+            jdbc.update("""
+                INSERT INTO demo_session_admission (admitted_at)
+                VALUES (DATEADD(MINUTE, -10, SYSDATETIMEOFFSET()))
+                """);
+        }
+        for (int hoursAgo = 2; hoursAgo <= 9; hoursAgo++) {
+            insertAdmissionHoursAgo(hoursAgo);
+        }
+
+        assertThatThrownBy(() -> facade.createOrResume(null))
+            .isInstanceOfSatisfying(DemoSessionException.class,
+                exception -> assertThat(exception.retryAfterSeconds()).isBetween(53_990L, 54_000L));
+    }
+
+    @Test
+    void concurrentHourlyBoundaryAllowsOnlyFourthAdmission() throws Exception {
+        for (int index = 0; index < 3; index++) {
+            jdbc.update("""
+                INSERT INTO demo_session_admission (admitted_at)
+                VALUES (DATEADD(MINUTE, -10, SYSDATETIMEOFFSET()))
+                """);
+        }
+
+        List<DemoSessionResult> results = runConcurrentCreations(2);
+
+        assertThat(results).filteredOn(DemoSessionResult::created).hasSize(1);
+        assertThat(results).filteredOn(DemoSessionResult::capacityRejected).hasSize(1);
+        assertThat(admissionCount()).isEqualTo(4);
+    }
+
+    @Test
+    void concurrentDailyBoundaryAllowsOnlyTwelfthAdmission() throws Exception {
+        for (int hoursAgo = 2; hoursAgo <= 12; hoursAgo++) {
+            insertAdmissionHoursAgo(hoursAgo);
+        }
+
+        List<DemoSessionResult> results = runConcurrentCreations(2);
+
+        assertThat(results).filteredOn(DemoSessionResult::created).hasSize(1);
+        assertThat(results).filteredOn(DemoSessionResult::capacityRejected).hasSize(1);
+        assertThat(admissionCount()).isEqualTo(12);
     }
 
     @Test
     void cleansExpiredSessionsBeforeAdmissionAndRejectsTheirResumeCookies() {
-        DemoSessionService.SessionGrant expired = facade.createOrResume(null, "198.51.100.1");
+        DemoSessionService.SessionGrant expired = facade.createOrResume(null);
         UUID expiredSessionId = sessionIdForAccessToken(expired.response().accessToken());
         jdbc.update("UPDATE demo_session SET expires_at = DATEADD(SECOND, -1, SYSDATETIMEOFFSET()) WHERE id = ?",
             expiredSessionId);
 
-        assertThatThrownBy(() -> facade.createOrResume(expired.resumeToken(), "198.51.100.1"))
+        assertThatThrownBy(() -> facade.createOrResume(expired.resumeToken()))
             .isInstanceOfSatisfying(DemoSessionException.class,
                 exception -> assertThat(exception.code()).isEqualTo("DEMO_SESSION_EXPIRED"));
         await().atMost(Duration.ofSeconds(5)).untilAsserted(
             () -> assertThat(sessionCount(expiredSessionId)).isZero());
 
-        facade.createOrResume(null, "198.51.100.2");
-        facade.createOrResume(null, "198.51.100.3");
+        facade.createOrResume(null);
+        facade.createOrResume(null);
         assertThat(activeSessionCount()).isEqualTo(2);
     }
 
     @Test
     void resumesValidCookieWithoutSlidingExpiryOrConsumingCreationThrottle() {
-        DemoSessionService.SessionGrant created = facade.createOrResume(null, "2001:db8::1");
+        DemoSessionService.SessionGrant created = facade.createOrResume(null);
         UUID sessionId = sessionIdForAccessToken(created.response().accessToken());
 
         DemoSessionService.SessionGrant resumed = created;
         for (int index = 0; index < 7; index++) {
-            resumed = facade.createOrResume(created.resumeToken(), "2001:0db8:0:0:0:0:0:1");
+            resumed = index % 2 == 0
+                ? facade.createOrResume(created.resumeToken())
+                : facade.renew(created.resumeToken());
         }
 
         assertThat(sessionIdForAccessToken(resumed.response().accessToken())).isEqualTo(sessionId);
         assertThat(resumed.response().sessionExpiresAt()).isEqualTo(created.response().sessionExpiresAt());
-        assertThat(attemptCount()).isEqualTo(1);
+        assertThat(admissionCount()).isEqualTo(1);
+    }
+
+    @Test
+    void terminalRenewalsNeverCreateSessionOrAdmission() {
+        assertThatThrownBy(() -> facade.renew(null))
+            .isInstanceOfSatisfying(DemoSessionException.class,
+                exception -> assertThat(exception.code()).isEqualTo("DEMO_SESSION_EXPIRED"));
+        assertThatThrownBy(() -> facade.renew("invalid-cookie"))
+            .isInstanceOfSatisfying(DemoSessionException.class,
+                exception -> assertThat(exception.code()).isEqualTo("DEMO_SESSION_EXPIRED"));
+        assertThat(admissionCount()).isZero();
+        assertThat(activeSessionCount()).isZero();
+
+        DemoSessionService.SessionGrant loggedOut = facade.createOrResume(null);
+        UUID loggedOutId = sessionIdForAccessToken(loggedOut.response().accessToken());
+        facade.logout(loggedOutId);
+        assertThatThrownBy(() -> facade.renew(loggedOut.resumeToken()))
+            .isInstanceOfSatisfying(DemoSessionException.class,
+                exception -> assertThat(exception.code()).isEqualTo("DEMO_SESSION_EXPIRED"));
+        assertThat(admissionCount()).isEqualTo(1);
     }
 
     @Test
     void resumePrunesExpiredAccessTokensButRetainsUnexpiredTokensForActiveSession() {
-        DemoSessionService.SessionGrant created = facade.createOrResume(null, "198.51.100.31");
+        DemoSessionService.SessionGrant created = facade.createOrResume(null);
         UUID sessionId = sessionIdForAccessToken(created.response().accessToken());
         String expiredDigest = digester.digest("dmo_expired-token");
         jdbc.update("""
@@ -182,7 +265,7 @@ class DemoSessionConcurrencyTest {
                 DATEADD(MINUTE, -1, SYSDATETIMEOFFSET()))
             """, sessionId, expiredDigest);
 
-        facade.createOrResume(created.resumeToken(), "198.51.100.31");
+        facade.createOrResume(created.resumeToken());
 
         await().atMost(Duration.ofSeconds(5)).untilAsserted(() -> assertThat(jdbc.queryForObject(
             "SELECT COUNT(*) FROM demo_access_token WHERE token_digest = ?",
@@ -194,16 +277,16 @@ class DemoSessionConcurrencyTest {
 
     @Test
     void invalidResumeCookieCreatesAReplacementSession() {
-        DemoSessionService.SessionGrant created = facade.createOrResume("invalid-cookie", "203.0.113.9");
+        DemoSessionService.SessionGrant created = facade.createOrResume("invalid-cookie");
 
         assertThat(created.resumeToken()).isNotEqualTo("invalid-cookie");
         assertThat(activeSessionCount()).isEqualTo(1);
-        assertThat(attemptCount()).isEqualTo(1);
+        assertThat(admissionCount()).isEqualTo(1);
     }
 
     @Test
     void logoutInvalidatesSessionAndDefersOwnedDataDeletion() {
-        DemoSessionService.SessionGrant grant = facade.createOrResume(null, "198.51.100.21");
+        DemoSessionService.SessionGrant grant = facade.createOrResume(null);
         UUID sessionId = sessionIdForAccessToken(grant.response().accessToken());
         insertOwnedRows(sessionId);
 
@@ -224,7 +307,7 @@ class DemoSessionConcurrencyTest {
 
     @Test
     void logoutRollsBackCleanupWhenFinalSessionUpdateFails() {
-        DemoSessionService.SessionGrant grant = facade.createOrResume(null, "198.51.100.22");
+        DemoSessionService.SessionGrant grant = facade.createOrResume(null);
         UUID sessionId = sessionIdForAccessToken(grant.response().accessToken());
         insertOwnedRows(sessionId);
         int accessTokensBefore = ownedRowCount("demo_access_token", sessionId);
@@ -259,8 +342,48 @@ class DemoSessionConcurrencyTest {
         return jdbc.queryForObject("SELECT COUNT(*) FROM demo_session WHERE id = ?", Integer.class, sessionId);
     }
 
-    private int attemptCount() {
-        return jdbc.queryForObject("SELECT COUNT(*) FROM demo_session_attempt", Integer.class);
+    private int admissionCount() {
+        return jdbc.queryForObject("SELECT COUNT(*) FROM demo_session_admission", Integer.class);
+    }
+
+    private void insertAdmissionHoursAgo(int hoursAgo) {
+        jdbc.update("""
+            INSERT INTO demo_session_admission (admitted_at)
+            VALUES (DATEADD(HOUR, ?, SYSDATETIMEOFFSET()))
+            """, -hoursAgo);
+    }
+
+    private List<DemoSessionResult> runConcurrentCreations(int requestCount) throws Exception {
+        CountDownLatch ready = new CountDownLatch(requestCount);
+        CountDownLatch start = new CountDownLatch(1);
+        ExecutorService executor = Executors.newFixedThreadPool(requestCount);
+        try {
+            List<Callable<DemoSessionResult>> tasks = new ArrayList<>();
+            for (int index = 0; index < requestCount; index++) {
+                tasks.add(() -> {
+                    ready.countDown();
+                    start.await();
+                    try {
+                        facade.createOrResume(null);
+                        return new DemoSessionResult(true, false);
+                    } catch (DemoSessionException exception) {
+                        return new DemoSessionResult(false,
+                            exception.code().equals("DEMO_CAPACITY_REACHED"));
+                    }
+                });
+            }
+
+            List<Future<DemoSessionResult>> futures = tasks.stream().map(executor::submit).toList();
+            ready.await();
+            start.countDown();
+            List<DemoSessionResult> results = new ArrayList<>();
+            for (Future<DemoSessionResult> future : futures) {
+                results.add(future.get());
+            }
+            return results;
+        } finally {
+            executor.shutdownNow();
+        }
     }
 
     private int ownedRowCount(String table, UUID sessionId) {
@@ -322,7 +445,7 @@ class DemoSessionConcurrencyTest {
         jdbc.update("DELETE FROM expense_category WHERE demo_session_id IS NOT NULL");
         jdbc.update("DELETE FROM demo_access_token");
         jdbc.update("DELETE FROM demo_session");
-        jdbc.update("DELETE FROM demo_session_attempt");
+        jdbc.update("DELETE FROM demo_session_admission");
         jdbc.update("DELETE FROM demo_seed_state");
     }
 

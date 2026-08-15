@@ -33,10 +33,6 @@ public class DemoSessionFacade {
     }
 
     public DemoSessionService.SessionGrant createOrResume(String rawResumeCookie) {
-        return createOrResume(rawResumeCookie, "unknown");
-    }
-
-    public DemoSessionService.SessionGrant createOrResume(String rawResumeCookie, String remoteAddress) {
         boolean databaseReady = false;
         try {
             ensureMigrated();

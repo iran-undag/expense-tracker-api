@@ -94,7 +94,7 @@ class DemoEndToEndIntegrationTest {
             .andExpect(status().isTooManyRequests())
             .andExpect(jsonPath("$.code").value("DEMO_CAPACITY_REACHED"));
 
-        for (int action = 1; action <= 15; action++) {
+        for (int action = 1; action <= 10; action++) {
             mockMvc.perform(post("/api/expenses")
                     .header("Authorization", "Bearer " + firstToken)
                     .contentType(MediaType.APPLICATION_JSON)
@@ -126,7 +126,7 @@ class DemoEndToEndIntegrationTest {
                 return request;
             }))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.actionLimit").value(15))
+            .andExpect(jsonPath("$.actionLimit").value(10))
             .andReturn();
         JsonNode body = objectMapper.readTree(result.getResponse().getContentAsString());
         return body.path("accessToken").asText();

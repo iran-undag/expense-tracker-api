@@ -80,7 +80,7 @@ public class DemoAuthenticationIntegrationTest {
         demoJdbc.update("DELETE FROM demo_access_token");
         demoJdbc.update("DELETE FROM demo_session");
         when(demoQuotaService.current(SESSION_ID)).thenReturn(
-            new DemoQuotaService.QuotaSnapshot(15, 15, OffsetDateTime.now(ZoneOffset.UTC).plusHours(1)));
+            new DemoQuotaService.QuotaSnapshot(10, 10, OffsetDateTime.now(ZoneOffset.UTC).plusHours(1)));
     }
 
     @Test
@@ -94,9 +94,9 @@ public class DemoAuthenticationIntegrationTest {
             .andExpect(jsonPath("$.principalName").value("demo-session-owner"))
             .andExpect(jsonPath("$.realm").value("DEMO"))
             .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header()
-                .string(DemoSessionHeadersAdvice.ACTIONS_LIMIT, "15"))
+                .string(DemoSessionHeadersAdvice.ACTIONS_LIMIT, "10"))
             .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header()
-                .string(DemoSessionHeadersAdvice.ACTIONS_REMAINING, "15"));
+                .string(DemoSessionHeadersAdvice.ACTIONS_REMAINING, "10"));
 
         assertThat(DataRealmContext.current()).isEmpty();
     }
@@ -150,9 +150,9 @@ public class DemoAuthenticationIntegrationTest {
     @Test
     void permitsOnlyTheDemoSessionCreationMethodWithoutAuthentication() throws Exception {
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
-        when(demoSessionFacade.createOrResume(any(), any())).thenReturn(
+        when(demoSessionFacade.createOrResume(any())).thenReturn(
             new DemoSessionService.SessionGrant(
-                new DemoSessionResponse("dmo_access", now.plusMinutes(15), now.plusHours(1), 15, 0, 15),
+                new DemoSessionResponse("dmo_access", now.plusMinutes(15), now.plusHours(1), 10, 0, 10),
                 "resume-token",
                 3_600
             ));

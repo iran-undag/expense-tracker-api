@@ -1,11 +1,13 @@
 package com.example.expensetracker.demo.quota;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.example.expensetracker.demo.security.DemoPrincipal;
 import com.example.expensetracker.demo.security.DemoTokenDigester;
 import com.example.expensetracker.demo.seed.DemoDatabaseInitializer;
 import com.example.expensetracker.demo.session.DemoSessionFacade;
+import com.example.expensetracker.demo.session.DemoSessionException;
 import com.example.expensetracker.persistence.DataRealm;
 import com.example.expensetracker.persistence.DataRealmExecutor;
 import java.time.OffsetDateTime;
@@ -105,8 +107,21 @@ class DemoExternalOperationQuotaTest {
         assertThat(reservationState(reservationId)).isEqualTo("EXPIRED");
     }
 
+    @Test
+    void reservationCanConsumeTenActionsAndRejectsTheNextAction() {
+        TestSession session = createSession("198.51.100.84");
+
+        UUID reservationId = inDemoRealm(() -> reservationService.reserve(session.authentication(), 10));
+
+        assertThat(actions(session.sessionId())).containsExactly(0, 10);
+        assertThatThrownBy(() -> inDemoRealm(() -> reservationService.reserve(session.authentication(), 1)))
+            .isInstanceOfSatisfying(DemoSessionException.class,
+                exception -> assertThat(exception.code()).isEqualTo("DEMO_QUOTA_EXHAUSTED"));
+        assertThat(reservationState(reservationId)).isEqualTo("PENDING");
+    }
+
     private TestSession createSession(String address) {
-        var grant = sessionFacade.createOrResume(null, address);
+        var grant = sessionFacade.createOrResume(null);
         UUID sessionId = jdbc.queryForObject(
             "SELECT demo_session_id FROM demo_access_token WHERE token_digest = ?",
             UUID.class, digester.digest(grant.response().accessToken()));
@@ -155,7 +170,7 @@ class DemoExternalOperationQuotaTest {
         jdbc.update("DELETE FROM expense_category WHERE demo_session_id IS NOT NULL");
         jdbc.update("DELETE FROM demo_access_token");
         jdbc.update("DELETE FROM demo_session");
-        jdbc.update("DELETE FROM demo_session_attempt");
+        jdbc.update("DELETE FROM demo_session_admission");
         jdbc.update("DELETE FROM demo_seed_state");
     }
 

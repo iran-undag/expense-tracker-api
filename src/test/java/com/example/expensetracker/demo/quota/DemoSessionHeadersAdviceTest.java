@@ -36,7 +36,7 @@ class DemoSessionHeadersAdviceTest {
         ObjectProvider<DemoQuotaService> provider = mock(ObjectProvider.class);
         when(provider.getObject()).thenReturn(quotaService);
         when(quotaService.current(sessionId))
-            .thenReturn(new DemoQuotaService.QuotaSnapshot(15, 7, expiresAt));
+            .thenReturn(new DemoQuotaService.QuotaSnapshot(10, 7, expiresAt));
         SecurityContextHolder.getContext().setAuthentication(
             UsernamePasswordAuthenticationToken.authenticated(
                 new DemoPrincipal(sessionId, "shared", "demo:" + sessionId, expiresAt),
@@ -50,7 +50,7 @@ class DemoSessionHeadersAdviceTest {
         new DemoSessionHeadersAdvice(provider).beforeBodyWrite(
             null, null, null, null, null, serverResponse);
 
-        assertThat(serverResponse.getHeaders().getFirst(DemoSessionHeadersAdvice.ACTIONS_LIMIT)).isEqualTo("15");
+        assertThat(serverResponse.getHeaders().getFirst(DemoSessionHeadersAdvice.ACTIONS_LIMIT)).isEqualTo("10");
         assertThat(serverResponse.getHeaders().getFirst(DemoSessionHeadersAdvice.ACTIONS_REMAINING)).isEqualTo("7");
         assertThat(serverResponse.getHeaders().getFirst(DemoSessionHeadersAdvice.SESSION_EXPIRES_AT))
             .isEqualTo(expiresAt.toString());
