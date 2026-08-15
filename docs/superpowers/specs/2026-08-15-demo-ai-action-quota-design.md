@@ -1,7 +1,7 @@
 # Demo AI Action Quota Design
 
 **Date:** 2026-08-15
-**Status:** Approved in discussion; pending written-spec review
+**Status:** Approved
 
 ## Goal
 
