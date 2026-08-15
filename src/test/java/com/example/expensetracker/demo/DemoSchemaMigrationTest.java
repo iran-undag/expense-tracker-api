@@ -39,7 +39,8 @@ class DemoSchemaMigrationTest {
     void migrationCreatesDemoSessionTablesAndBusinessOwnershipColumns() throws SQLException {
         assertThat(columns("demo_session"))
             .contains("id", "expires_at", "used_actions", "reserved_actions");
-        assertThat(columns("demo_session_attempt")).contains("ip_digest", "attempted_at");
+        assertThat(columns("demo_session_admission")).contains("id", "admitted_at");
+        assertThat(tableExists("demo_session_attempt")).isFalse();
         assertThat(columns("expense")).contains("demo_session_id", "is_demo_seed");
         assertThat(columns("budget")).contains("demo_session_id", "is_demo_seed");
         assertThat(columns("expense_category")).contains("demo_session_id", "is_demo_seed");
@@ -47,7 +48,7 @@ class DemoSchemaMigrationTest {
     }
 
     @Test
-    void migrationEnforcesFifteenActionSessionAndReservationLimits() throws SQLException {
+    void migrationEnforcesTenActionSessionAndReservationLimits() throws SQLException {
         try (Connection connection = SQL_SERVER.createConnection("");
              Statement statement = connection.createStatement()) {
             statement.executeUpdate("""
@@ -56,7 +57,7 @@ class DemoSchemaMigrationTest {
                      used_actions, reserved_actions, resume_token_digest)
                 VALUES
                     ('11111111-1111-1111-1111-111111111111', 'shared', 'demo:limit-15', 'ACTIVE',
-                     SYSDATETIMEOFFSET(), DATEADD(HOUR, 1, SYSDATETIMEOFFSET()), 15, 0,
+                     SYSDATETIMEOFFSET(), DATEADD(HOUR, 1, SYSDATETIMEOFFSET()), 10, 0,
                      REPLICATE('a', 64))
                 """);
 
@@ -66,7 +67,7 @@ class DemoSchemaMigrationTest {
                      used_actions, reserved_actions, resume_token_digest)
                 VALUES
                     ('22222222-2222-2222-2222-222222222222', 'shared', 'demo:limit-16', 'ACTIVE',
-                     SYSDATETIMEOFFSET(), DATEADD(HOUR, 1, SYSDATETIMEOFFSET()), 16, 0,
+                     SYSDATETIMEOFFSET(), DATEADD(HOUR, 1, SYSDATETIMEOFFSET()), 11, 0,
                      REPLICATE('b', 64))
                 """)).isInstanceOf(SQLException.class);
 
@@ -75,9 +76,17 @@ class DemoSchemaMigrationTest {
                     (id, demo_session_id, cost, state, created_at, expires_at)
                 VALUES
                     ('33333333-3333-3333-3333-333333333333',
-                     '11111111-1111-1111-1111-111111111111', 16, 'PENDING',
+                     '11111111-1111-1111-1111-111111111111', 11, 'PENDING',
                      SYSDATETIMEOFFSET(), DATEADD(MINUTE, 5, SYSDATETIMEOFFSET()))
                 """)).isInstanceOf(SQLException.class);
+        }
+    }
+
+    private boolean tableExists(String tableName) throws SQLException {
+        try (Connection connection = SQL_SERVER.createConnection("");
+             ResultSet tables = connection.getMetaData().getTables(
+                 null, "dbo", tableName, new String[] {"TABLE"})) {
+            return tables.next();
         }
     }
 
