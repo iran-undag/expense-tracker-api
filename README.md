@@ -214,7 +214,9 @@ Swagger/OpenAPI documentation is available at `http://localhost:8081/swagger-ui/
 
 ### Testing with Swagger
 
-> **TIP:** To test the secured endpoints in Swagger:
+> **Development profile only:** The mock login below is available only with `spring.profiles.active=dev`. It is not provided by the production API. For `prod`, obtain a personal access token through the configured OIDC flow or a demo access token through `POST /api/demo/sessions`, then use Swagger Authorize.
+>
+> To test the development endpoints in Swagger:
 > 1. Launch the application and go to the Swagger UI (`/swagger-ui/index.html`).
 > 2. Call `POST /api/auth/login` with a JSON payload like `{"userId": "your_test_user"}`.
 > 3. Copy the generated JWT token from the response.
@@ -356,7 +358,7 @@ This composes the app with the `prod` Spring profile. Copy `.env.sample` to `.en
 - `AZURE_BOT_DIRECT_LINE_TRUSTED_ORIGINS` — Comma-separated Web Chat origins embedded in generated tokens
 - `CHATBOT_WARMUP_URL` — Server-to-server chatbot warm-up endpoint
 - `CHATBOT_WARMUP_KEY` — Shared 256-bit warm-up key stored in Key Vault and never exposed to the browser
-- `CHATBOT_WARMUP_COOLDOWN` — Per-user downstream warm-up cooldown, default `5m`
+- `CHATBOT_WARMUP_COOLDOWN` — Per-user cache duration after a successful warm-up, default `5m`; delayed results retry after five seconds
 - `CHATBOT_WARMUP_CONNECT_TIMEOUT` — Chatbot wake-up connection timeout, default `2s`
 - `CHATBOT_WARMUP_READ_TIMEOUT` — Chatbot wake-up response timeout, default `10s`
 - `AUTH_ISSUER_URI` — JWT issuer expected by the API; this must exactly match the access token `iss`, for example `http://localhost:9000`
@@ -373,8 +375,8 @@ The API owns all browser-facing chatbot credentials and warm-up calls:
 - If the authenticated JWT contains `given_name`, the API sanitizes it, limits it to 50 Unicode code points, and includes it only as the optional Direct Line `user.name` used by the welcome message. The API does not infer a name from other claims.
 - The optional first name is not returned as a new browser response field, persisted in the identity mapping, used for authorization, or written to logs; diagnostic serialization records only whether a name is present.
 - `POST /api/bot/warmup` requires the normal bearer token and calls the chatbot's protected `/internal/warmup` endpoint.
-- Warm-up calls are limited to one downstream request per user during the configured five-minute cooldown.
-- Warm-up failures return `delayed` and do not fail login or other API behavior.
+- Successful warm-up results are cached per user for the configured five-minute cooldown. Failed checks return `delayed` and are cached for only five seconds after the check completes, allowing the browser's existing automatic retries to check readiness again.
+- Only one downstream warm-up request per user runs at a time within each API instance. Concurrent calls return `delayed` while that check is in progress. Warm-up failures do not fail login or other API behavior.
 - `CHATBOT_WARMUP_KEY` is server-to-server only and must match the chatbot service value.
 
 For local Docker Compose integration with the chatbot on host port 8082:

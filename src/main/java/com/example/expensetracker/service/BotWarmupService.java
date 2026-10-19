@@ -18,6 +18,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public class BotWarmupService {
     private static final Logger log = LoggerFactory.getLogger(BotWarmupService.class);
     private static final String WARMUP_HEADER = "X-Chatbot-Warmup-Key";
+    private static final Duration DELAYED_COOLDOWN = Duration.ofSeconds(5);
 
     private final RestTemplate restTemplate;
     private final String warmupUrl;
@@ -39,17 +40,19 @@ public class BotWarmupService {
         String userHash = hash(userId);
         Instant now = clock.instant();
         CacheEntry existing = cache.get(userHash);
-        if (existing != null && now.isBefore(existing.expiresAt())) {
+        if (existing != null && existing.isCurrent(now)) {
             return existing.status();
         }
-        CacheEntry reserved = new CacheEntry(BotWarmupStatus.DELAYED, now.plus(cooldown));
+        // An in-flight reservation has no expiry until its downstream request completes.
+        CacheEntry reserved = new CacheEntry(BotWarmupStatus.DELAYED, null);
         CacheEntry winner = cache.compute(userHash, (ignored, current) ->
-                current != null && now.isBefore(current.expiresAt()) ? current : reserved);
+                current != null && current.isCurrent(now) ? current : reserved);
         if (winner != reserved) {
             return winner.status();
         }
         BotWarmupStatus status = callChatbot();
-        cache.put(userHash, new CacheEntry(status, now.plus(cooldown)));
+        Duration resultCooldown = status == BotWarmupStatus.READY ? cooldown : DELAYED_COOLDOWN;
+        cache.put(userHash, new CacheEntry(status, clock.instant().plus(resultCooldown)));
         return status;
     }
 
@@ -75,5 +78,8 @@ public class BotWarmupService {
     }
 
     private record CacheEntry(BotWarmupStatus status, Instant expiresAt) {
+        boolean isCurrent(Instant now) {
+            return expiresAt == null || now.isBefore(expiresAt);
+        }
     }
 }
